@@ -34,17 +34,24 @@ def main():
         help="実行サイクル数（0=無限ループ、デフォルト=1）",
     )
     parser.add_argument(
-        "--mode", choices=["full", "research", "compose", "fetch", "report"],
+        "--mode", choices=["full", "research", "compose", "fetch", "report", "sim"],
         default="full",
-        help="実行モード（デフォルト: full）",
+        help="実行モード（デフォルト: full、sim=シミュレーション）",
     )
     args = parser.parse_args()
+
+    # シミュレーションモード
+    if args.mode == "sim":
+        from .simulator import run_simulation
+        run_simulation(niche=args.niche, target=args.target)
+        return
 
     config = load_config()
 
     # API設定の検証
     if not config.threads.access_token:
         logger.error("THREADS_ACCESS_TOKEN が設定されていません")
+        logger.error("シミュレーションモードで実行するには: --mode sim")
         sys.exit(1)
     if not config.threads.user_id:
         logger.error("THREADS_USER_ID が設定されていません")

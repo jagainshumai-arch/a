@@ -1,0 +1,46 @@
+{
+  "cycle_time": "2026-03-28T15:56:01.021070",
+  "mode": "simulation",
+  "niche": "美肌・スキンケア",
+  "target_audience": "育児中の30代ママ",
+  "posts_analyzed": 5,
+  "avg_engagement_rate": 2.07,
+  "total_views": 49470,
+  "total_likes": 1065,
+  "top_performers": [
+    {
+      "id": "sim_post_003",
+      "er": 2.99
+    },
+    {
+      "id": "sim_post_001",
+      "er": 2.92
+    }
+  ],
+  "low_performers": [
+    {
+      "id": "sim_post_005",
+      "er": 0.94
+    },
+    {
+      "id": "sim_post_004",
+      "er": 0.67
+    }
+  ],
+  "new_posts_published": 5,
+  "published_ids": [
+    "sim_post_101",
+    "sim_post_102",
+    "sim_post_103",
+    "sim_post_104",
+    "sim_post_105"
+  ],
+  "trending_topics": [
+    "プチプラスキンケアの見直し",
+    "朝のスキンケア時短術",
+    "皮膚科医が教えるNG習慣",
+    "産後の肌荒れ対策",
+    "季節の変わり目スキンケア"
+  ],
+  "drafts_generated": 5
+}
