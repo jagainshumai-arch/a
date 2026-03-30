@@ -1,13 +1,29 @@
-"""投稿作成モジュール — リサーチ結果からAIで投稿文を生成"""
+"""投稿作成モジュール — ナレッジ参照+AIで投稿文を生成"""
 
 import json
 import logging
+import os
 from dataclasses import dataclass
 
 from .ai_client import AIClient
 from .researcher import ResearchResult
 
 logger = logging.getLogger(__name__)
+
+KNOWLEDGE_DIR = os.path.join(os.path.dirname(__file__), "knowledge")
+
+
+def _load_knowledge() -> str:
+    """knowledgeディレクトリから全ナレッジを読み込む"""
+    parts = []
+    if not os.path.isdir(KNOWLEDGE_DIR):
+        return ""
+    for fname in sorted(os.listdir(KNOWLEDGE_DIR)):
+        if fname.endswith(".md"):
+            path = os.path.join(KNOWLEDGE_DIR, fname)
+            with open(path, encoding="utf-8") as f:
+                parts.append(f.read())
+    return "\n\n---\n\n".join(parts)
 
 
 @dataclass
@@ -21,30 +37,43 @@ class DraftPost:
 
 
 class Composer:
-    """AIによる投稿作成エンジン"""
+    """ナレッジ参照型AIによる投稿作成エンジン"""
 
-    SYSTEM_PROMPT = """あなたはThreads投稿の専門家です。以下のルールを厳守してください:
+    SYSTEM_PROMPT_TEMPLATE = """あなたはThreads投稿の専門家です。以下のナレッジを熟読し、ルールを厳守して投稿を作成してください。
+
+=== ナレッジ ===
+{knowledge}
+=== ナレッジここまで ===
+
+【最重要：タップ経済の原則】
+Threadsはタップ数とプロフィールアクセス数でバズが決まる。
+1行目で全てが決まる。1行目には必ず「固有名詞」と「数字」を入れること。
 
 【絶対ルール】
-1. 1行目は必ず読者のベネフィットを明示する（フック）
-2. PREP法（結論→理由→具体例→結論）で構成する
-3. 300文字以内で簡潔にまとめる
-4. 「〇〇だと思っていない？」「絶対〜！」などAIっぽい表現は禁止
+1. 1行目は固有名詞（ChatGPT/Claude/Perplexity等）+ 数字で構成
+2. PREP法（結論→理由→具体例→結論）で構成
+3. 150〜300文字で簡潔にまとめる
+4. 「〇〇だと思っていない？」「絶対〜！」「いかがでしたか？」などAIっぽい表現は禁止
 5. 具体的な数字・体験・事例を入れる
-6. ターゲットが明確にわかる内容にする
-7. 自然な口語体で書く（ですます調OK、硬すぎない）
-8. ハッシュタグは最後に2〜3個"""
+6. 自然な口語体（断言する、体言止めを混ぜる）
+7. ハッシュタグは末尾に2〜3個
+8. 06_references.mdの投稿型を参考にする
+9. 07_ng-rules.mdに該当する表現を絶対に使わない"""
 
     POST_TYPES = {
-        "benefit": "読者のベネフィットを1行目に提示し、PREP法で展開",
-        "list": "「〇選」形式でリスト化。各項目は1行で簡潔に",
-        "story": "共感ストーリー型。Before→転機→Afterの流れ",
-        "how_to": "手順型。ステップ1→2→3の具体的な方法",
-        "before_after": "ビフォーアフター型。変化を数字で示す",
+        "benefit": "1行目に固有名詞+数字でベネフィットを提示し、PREP法で展開",
+        "list": "「〇選」形式。1行目に固有名詞+数字。各項目は1行で簡潔に",
+        "story": "失敗→転機→成果のストーリー。1行目に固有名詞+変化の数字",
+        "how_to": "手順型。1行目に固有名詞+成果の数字。ステップ1→2→3",
+        "before_after": "Before→After型。1行目に固有名詞+変化を数字で示す",
     }
 
     def __init__(self, ai: AIClient):
         self.ai = ai
+        knowledge = _load_knowledge()
+        self.system_prompt = self.SYSTEM_PROMPT_TEMPLATE.format(
+            knowledge=knowledge if knowledge else "（ナレッジファイル未設定）"
+        )
 
     def generate_posts(self, research: ResearchResult, niche: str,
                        target_audience: str, count: int = 5) -> list[DraftPost]:
@@ -88,8 +117,14 @@ class Composer:
 }}"""
 
         try:
-            response = self.ai.generate(prompt, system=self.SYSTEM_PROMPT)
-            parsed = json.loads(response)
+            response = self.ai.generate(prompt, system=self.system_prompt)
+            # JSON部分を抽出
+            start = response.find("{")
+            end = response.rfind("}") + 1
+            if start >= 0 and end > start:
+                parsed = json.loads(response[start:end])
+            else:
+                parsed = json.loads(response)
             return DraftPost(
                 text=parsed["full_text"],
                 topic=topic,
@@ -99,7 +134,6 @@ class Composer:
             )
         except (json.JSONDecodeError, KeyError) as e:
             logger.warning("Failed to parse AI response for topic '%s': %s", topic, e)
-            # フォールバック: レスポンス全体を投稿文として使う
             if response and len(response) <= 500:
                 return DraftPost(
                     text=response,
@@ -130,8 +164,13 @@ class Composer:
 }}"""
 
         try:
-            response = self.ai.generate(prompt, system=self.SYSTEM_PROMPT)
-            parsed = json.loads(response)
+            response = self.ai.generate(prompt, system=self.system_prompt)
+            start = response.find("{")
+            end = response.rfind("}") + 1
+            if start >= 0 and end > start:
+                parsed = json.loads(response[start:end])
+            else:
+                parsed = json.loads(response)
             return DraftPost(
                 text=parsed["full_text"],
                 topic="rewrite",
