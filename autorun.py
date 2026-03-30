@@ -31,8 +31,8 @@ CONFIG = {
     "AI_MODEL": "claude-sonnet-4-20250514",
 
     # パイプライン設定
-    "NICHE": "AI活用 × 副業・収益化",
-    "TARGET": "AIに興味がある20〜40代の会社員・副業初心者",
+    "NICHE": "AI活用 × 気づき・知見・効率化",
+    "TARGET": "AIに興味はあるが活かしきれていない20〜40代の会社員・フリーランス",
     "POSTS_PER_CYCLE": 3,          # 1サイクルで投稿する本数
     "POST_INTERVAL_SEC": 300,      # 投稿間隔（秒）= 5分
     "CYCLE_INTERVAL_MIN": 60,      # サイクル間隔（分）
@@ -290,8 +290,8 @@ JSON形式のみで出力:
         research = json.loads(raw[start:end]) if start >= 0 else {"trending_topics": [], "recommended_angles": []}
     except Exception as e:
         print(f"  ⚠️ リサーチエラー: {e}")
-        research = {"trending_topics": ["ChatGPT活用術", "AI副業の始め方", "Claude vs ChatGPT"],
-                    "recommended_angles": ["数字+成果型", "比較型", "失敗談型"]}
+        research = {"trending_topics": ["ChatGPT活用術", "AI時短テクニック", "Claude vs ChatGPT"],
+                    "recommended_angles": ["発見・驚き型", "Before/After型", "小技・裏ワザ型"]}
 
     print("  🔥 トレンドトピック:")
     for i, t in enumerate(research.get("trending_topics", []), 1):
@@ -323,11 +323,13 @@ def step_compose(research):
 
 【ルール】
 1. 1行目は固有名詞+数字でベネフィット提示
-2. PREP法で構成（結論→理由→具体例→結論）
+2. 気づき→理由→具体例→結論で構成
 3. 150〜300文字
 4. AIっぽい表現禁止（「〇〇だと思っていませんか？」「いかがでしたか？」等）
 5. 具体的な数字・体験を入れる
-6. ハッシュタグは末尾に2〜3個"""
+6. ハッシュタグは末尾に2〜3個
+7. 売上・収益・稼ぐ・副業の話は一切禁止
+8. 等身大の体験・気づきトーンで書く"""
 
     topics = research.get("trending_topics", []) + research.get("recommended_angles", [])
     post_types = ["benefit", "list", "story", "how_to", "before_after"]
