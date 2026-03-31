@@ -27,14 +27,7 @@ from flask import Flask, flash, jsonify, redirect, render_template, request, url
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
-
-# ナレッジディレクトリを複数候補から探す
-_knowledge_candidates = [
-    BASE_DIR / "threads_automation" / "knowledge",        # threads_app/ 直下にある場合
-    BASE_DIR.parent / "threads_automation" / "knowledge",  # threads_app/ がサブフォルダの場合
-    BASE_DIR / "knowledge",                                # knowledge/ が直下にある場合
-]
-KNOWLEDGE_DIR = next((p for p in _knowledge_candidates if p.is_dir()), _knowledge_candidates[0])
+KNOWLEDGE_DIR = BASE_DIR / "threads_automation" / "knowledge"
 
 DATA_DIR.mkdir(exist_ok=True)
 
@@ -51,14 +44,7 @@ CONFIG = {
     "POSTS_PER_BATCH": 5,
 }
 
-# テンプレートディレクトリを探す（同階層 or threads_appサブフォルダ）
-_template_candidates = [
-    BASE_DIR / "templates",
-    BASE_DIR / "threads_app" / "templates",
-]
-_template_dir = next((p for p in _template_candidates if p.is_dir()), BASE_DIR / "templates")
-
-app = Flask(__name__, template_folder=str(_template_dir))
+app = Flask(__name__)
 app.secret_key = os.getenv("FLASK_SECRET", "threads-app-secret-key")
 
 # ════════════════════════════════════════════════════════
@@ -240,7 +226,7 @@ def generate_drafts(count: int = None) -> list:
             "text": p.get("full_text", ""),
             "post_type": p.get("post_type", ""),
             "char_count": len(p.get("full_text", "")),
-            "status": "pending",  # pending → approved → posted / rejected
+            "status": "pending",
             "created_at": datetime.now().isoformat(),
             "posted_at": None,
             "post_id": None,
@@ -497,14 +483,9 @@ def api_status():
 # ════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
-    # .env ファイルの簡易読み込み（同階層 → 親ディレクトリの順に探す）
-    env_path = None
-    for candidate in [BASE_DIR / ".env", BASE_DIR.parent / ".env"]:
-        if candidate.exists():
-            env_path = candidate
-            break
-
-    if env_path:
+    # .env ファイルの簡易読み込み
+    env_path = BASE_DIR / ".env"
+    if env_path.exists():
         for line in env_path.read_text(encoding="utf-8").splitlines():
             line = line.strip()
             if line and not line.startswith("#") and "=" in line:
@@ -520,12 +501,12 @@ if __name__ == "__main__":
     print("=" * 50)
     print("  Threads × AI 投稿管理アプリ")
     print("=" * 50)
-    print(f"  Claude API: {'✅ 設定済み' if CONFIG['ANTHROPIC_API_KEY'] else '❌ 未設定'}")
-    print(f"  Threads API: {'✅ 設定済み' if CONFIG['THREADS_ACCESS_TOKEN'] else '❌ 未設定'}")
+    print(f"  Claude API: {'設定済み' if CONFIG['ANTHROPIC_API_KEY'] else '未設定'}")
+    print(f"  Threads API: {'設定済み' if CONFIG['THREADS_ACCESS_TOKEN'] else '未設定'}")
     print(f"  ナレッジ: {KNOWLEDGE_DIR}")
     print(f"  データ: {DATA_DIR}")
     print("=" * 50)
-    print("  → ブラウザで http://localhost:5000 を開いてください")
+    print("  http://localhost:5000 をブラウザで開いてください")
     print("=" * 50)
 
     app.run(host="0.0.0.0", port=5000, debug=True)

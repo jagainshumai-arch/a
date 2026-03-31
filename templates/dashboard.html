@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Threads × AI 投稿管理</title>
+    <style>
+        :root {
+            --bg: #0a0a0a;
+            --surface: #1a1a1a;
+            --surface2: #242424;
+            --border: #333;
+            --text: #e8e8e8;
+            --text-dim: #888;
+            --accent: #4f8cff;
+            --green: #22c55e;
+            --red: #ef4444;
+            --orange: #f59e0b;
+            --purple: #a855f7;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── ヘッダー ── */
+        .header {
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .header h1 span { color: var(--accent); }
+        .header-status {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+        }
+        .status-dot {
+            display: inline-block;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .status-dot.on { background: var(--green); }
+        .status-dot.off { background: var(--red); }
+
+        /* ── メイン ── */
+        .container {
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 24px 16px;
+        }
+
+        /* ── フラッシュメッセージ ── */
+        .flash {
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+        .flash.success { background: rgba(34,197,94,0.15); border: 1px solid rgba(34,197,94,0.3); color: var(--green); }
+        .flash.error { background: rgba(239,68,68,0.15); border: 1px solid rgba(239,68,68,0.3); color: var(--red); }
+        .flash.info { background: rgba(79,140,255,0.15); border: 1px solid rgba(79,140,255,0.3); color: var(--accent); }
+
+        /* ── 統計バー ── */
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stat-card .num { font-size: 28px; font-weight: 700; }
+        .stat-card .label { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+        .stat-card.pending .num { color: var(--orange); }
+        .stat-card.approved .num { color: var(--green); }
+        .stat-card.posted .num { color: var(--accent); }
+        .stat-card.rejected .num { color: var(--red); }
+
+        /* ── アクションバー ── */
+        .action-bar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.85; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-primary { background: var(--accent); color: #fff; }
+        .btn-green { background: var(--green); color: #fff; }
+        .btn-red { background: var(--red); color: #fff; }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text);
+        }
+        .btn-sm { padding: 6px 12px; font-size: 12px; }
+
+        select, input[type="number"] {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        /* ── セクション ── */
+        .section {
+            margin-bottom: 32px;
+        }
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .section-title {
+            font-size: 16px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            border-radius: 11px;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 0 6px;
+        }
+        .badge-orange { background: rgba(245,158,11,0.2); color: var(--orange); }
+        .badge-green { background: rgba(34,197,94,0.2); color: var(--green); }
+        .badge-red { background: rgba(239,68,68,0.2); color: var(--red); }
+
+        /* ── カード ── */
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            overflow: hidden;
+        }
+        .card-body {
+            padding: 16px;
+        }
+        .card-meta {
+            display: flex;
+            gap: 12px;
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .card-meta .tag {
+            background: var(--surface2);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .card-text {
+            font-size: 15px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+        .card-hook {
+            font-weight: 700;
+            color: var(--accent);
+            margin-bottom: 4px;
+        }
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            flex-wrap: wrap;
+        }
+        .char-count {
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-left: auto;
+            align-self: center;
+        }
+
+        /* ── 編集テキストエリア ── */
+        .edit-area {
+            display: none;
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+        }
+        .edit-area.active { display: block; }
+        .edit-area textarea {
+            width: 100%;
+            min-height: 120px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 12px;
+            font-size: 14px;
+            line-height: 1.6;
+            font-family: inherit;
+            resize: vertical;
+        }
+        .edit-area .edit-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+            justify-content: flex-end;
+        }
+
+        /* ── 履歴テーブル ── */
+        .history-item {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .history-item:last-child { border-bottom: none; }
+        .history-item .h-time { color: var(--text-dim); font-size: 12px; }
+        .history-item .h-text { margin-top: 4px; line-height: 1.5; }
+        .history-item .h-id { color: var(--accent); font-size: 11px; font-family: monospace; }
+
+        /* ── 空状態 ── */
+        .empty {
+            text-align: center;
+            padding: 32px;
+            color: var(--text-dim);
+            font-size: 14px;
+        }
+
+        /* ── スピナー ── */
+        .spinner { display: none; }
+        .loading .spinner { display: inline-block; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── レスポンシブ ── */
+        @media (max-width: 600px) {
+            .stats { grid-template-columns: repeat(2, 1fr); }
+            .action-bar { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1><span>Threads</span> × AI 投稿管理</h1>
+        <div class="header-status" id="connectionStatus">
+            <span><span class="status-dot" id="claudeDot"></span>Claude API</span>
+            <span><span class="status-dot" id="threadsDot"></span>Threads API</span>
+        </div>
+    </header>
+
+    <div class="container">
+        <!-- フラッシュメッセージ -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- 統計 -->
+        <div class="stats">
+            <div class="stat-card pending">
+                <div class="num">{{ pending|length }}</div>
+                <div class="label">レビュー待ち</div>
+            </div>
+            <div class="stat-card approved">
+                <div class="num">{{ approved|length }}</div>
+                <div class="label">承認済み</div>
+            </div>
+            <div class="stat-card posted">
+                <div class="num">{{ history|length }}</div>
+                <div class="label">投稿済み</div>
+            </div>
+            <div class="stat-card rejected">
+                <div class="num">{{ rejected|length }}</div>
+                <div class="label">却下</div>
+            </div>
+        </div>
+
+        <!-- アクションバー -->
+        <div class="action-bar">
+            <form method="POST" action="{{ url_for('generate') }}" id="generateForm">
+                <input type="number" name="count" value="5" min="1" max="10" style="width:60px">
+                <button type="submit" class="btn btn-primary" id="generateBtn" onclick="this.disabled=true;this.innerText='生成中...';this.form.submit();">
+                    AI で生成
+                </button>
+            </form>
+
+            {% if approved|length > 0 %}
+            <form method="POST" action="{{ url_for('post_all') }}" onsubmit="return confirm('承認済み {{ approved|length }}件を全てThreadsに投稿しますか？\n投稿間隔は5分です。')">
+                <button type="submit" class="btn btn-green">
+                    承認済みを全て投稿 ({{ approved|length }})
+                </button>
+            </form>
+            {% endif %}
+
+            {% if pending|length > 0 %}
+            <form method="POST" action="{{ url_for('approve_all') }}">
+                <button type="submit" class="btn btn-outline">全て承認</button>
+            </form>
+            {% endif %}
+
+            {% if rejected|length > 0 %}
+            <form method="POST" action="{{ url_for('clear_rejected') }}">
+                <button type="submit" class="btn btn-outline btn-sm">却下済みクリア</button>
+            </form>
+            {% endif %}
+        </div>
+
+        <!-- ━━━ レビュー待ち ━━━ -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">
+                    レビュー待ち
+                    <span class="badge badge-orange">{{ pending|length }}</span>
+                </div>
+            </div>
+
+            {% if pending %}
+            {% for d in pending %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="card-meta">
+                        <span class="tag">{{ d.post_type }}</span>
+                        <span>{{ d.char_count }}文字</span>
+                        <span>{{ d.created_at[:16] }}</span>
+                        {% if d.get('edited') %}<span style="color:var(--orange);">編集済み</span>{% endif %}
+                    </div>
+                    <div class="card-text">{{ d.text }}</div>
+                </div>
+                <div class="card-actions">
+                    <form method="POST" action="{{ url_for('approve', draft_id=d.id) }}">
+                        <button class="btn btn-green btn-sm">承認</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('reject', draft_id=d.id) }}">
+                        <button class="btn btn-red btn-sm">却下</button>
+                    </form>
+                    <button class="btn btn-outline btn-sm" onclick="toggleEdit('{{ d.id }}')">編集</button>
+                    <form method="POST" action="{{ url_for('regenerate', draft_id=d.id) }}">
+                        <button class="btn btn-outline btn-sm">再生成</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('delete', draft_id=d.id) }}">
+                        <button class="btn btn-outline btn-sm" style="color:var(--red);">削除</button>
+                    </form>
+                    <span class="char-count">ID: {{ d.id }}</span>
+                </div>
+                <div class="edit-area" id="edit-{{ d.id }}">
+                    <form method="POST" action="{{ url_for('edit', draft_id=d.id) }}">
+                        <textarea name="text">{{ d.text }}</textarea>
+                        <div class="edit-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="toggleEdit('{{ d.id }}')">キャンセル</button>
+                            <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="card">
+                <div class="empty">
+                    レビュー待ちの下書きはありません。<br>
+                    「AI で生成」ボタンで投稿を作成しましょう。
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- ━━━ 承認済み ━━━ -->
+        {% if approved %}
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">
+                    承認済み（投稿待ち）
+                    <span class="badge badge-green">{{ approved|length }}</span>
+                </div>
+            </div>
+
+            {% for d in approved %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="card-meta">
+                        <span class="tag">{{ d.post_type }}</span>
+                        <span>{{ d.char_count }}文字</span>
+                    </div>
+                    <div class="card-text">{{ d.text }}</div>
+                </div>
+                <div class="card-actions">
+                    <form method="POST" action="{{ url_for('post_single', draft_id=d.id) }}" onsubmit="return confirm('この投稿をThreadsに公開しますか？')">
+                        <button class="btn btn-green btn-sm">Threadsに投稿</button>
+                    </form>
+                    <button class="btn btn-outline btn-sm" onclick="toggleEdit('ap-{{ d.id }}')">編集</button>
+                    <form method="POST" action="{{ url_for('reject', draft_id=d.id) }}">
+                        <button class="btn btn-outline btn-sm" style="color:var(--red);">取消</button>
+                    </form>
+                </div>
+                <div class="edit-area" id="edit-ap-{{ d.id }}">
+                    <form method="POST" action="{{ url_for('edit', draft_id=d.id) }}">
+                        <textarea name="text">{{ d.text }}</textarea>
+                        <div class="edit-actions">
+                            <button type="button" class="btn btn-outline btn-sm" onclick="toggleEdit('ap-{{ d.id }}')">キャンセル</button>
+                            <button type="submit" class="btn btn-primary btn-sm">保存</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- ━━━ 却下済み ━━━ -->
+        {% if rejected %}
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">
+                    却下済み
+                    <span class="badge badge-red">{{ rejected|length }}</span>
+                </div>
+            </div>
+
+            {% for d in rejected %}
+            <div class="card" style="opacity:0.6;">
+                <div class="card-body">
+                    <div class="card-meta">
+                        <span class="tag">{{ d.post_type }}</span>
+                        <span>{{ d.char_count }}文字</span>
+                    </div>
+                    <div class="card-text">{{ d.text }}</div>
+                </div>
+                <div class="card-actions">
+                    <form method="POST" action="{{ url_for('approve', draft_id=d.id) }}">
+                        <button class="btn btn-outline btn-sm">復活</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('delete', draft_id=d.id) }}">
+                        <button class="btn btn-outline btn-sm" style="color:var(--red);">削除</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- ━━━ 投稿履歴 ━━━ -->
+        <div class="section">
+            <div class="section-header">
+                <div class="section-title">
+                    投稿履歴
+                    <span class="badge" style="background:rgba(79,140,255,0.2);color:var(--accent);">{{ history|length }}</span>
+                </div>
+            </div>
+
+            <div class="card">
+                {% if history %}
+                {% for h in history[:20] %}
+                <div class="history-item">
+                    <div class="h-time">
+                        {{ h.posted_at[:16] if h.posted_at else '' }}
+                        <span class="h-id">{{ h.post_id }}</span>
+                    </div>
+                    <div class="h-text">{{ h.text[:200] }}{% if h.text|length > 200 %}...{% endif %}</div>
+                </div>
+                {% endfor %}
+                {% if history|length > 20 %}
+                <div class="empty">他 {{ history|length - 20 }}件</div>
+                {% endif %}
+                {% else %}
+                <div class="empty">投稿履歴はまだありません</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleEdit(id) {
+            const el = document.getElementById('edit-' + id);
+            if (el) el.classList.toggle('active');
+        }
+
+        // 接続ステータスチェック
+        fetch('/api/status')
+            .then(r => r.json())
+            .then(data => {
+                document.getElementById('claudeDot').className =
+                    'status-dot ' + (data.claude_configured ? 'on' : 'off');
+                document.getElementById('threadsDot').className =
+                    'status-dot ' + (data.threads_connected ? 'on' : (data.threads_configured ? 'off' : 'off'));
+            })
+            .catch(() => {});
+
+        // 3秒後にフラッシュメッセージを自動非表示
+        setTimeout(() => {
+            document.querySelectorAll('.flash').forEach(el => {
+                el.style.transition = 'opacity 0.5s';
+                el.style.opacity = '0';
+                setTimeout(() => el.remove(), 500);
+            });
+        }, 3000);
+    </script>
+</body>
+</html>
