@@ -123,8 +123,12 @@ def threads_api(method: str, endpoint: str, params=None, data=None):
         req = Request(url, data=body, method="POST")
         req.add_header("Content-Type", "application/x-www-form-urlencoded")
 
-    with urlopen(req, timeout=30) as resp:
-        return json.loads(resp.read().decode())
+    try:
+        with urlopen(req, timeout=30) as resp:
+            return json.loads(resp.read().decode())
+    except HTTPError as e:
+        error_body = e.read().decode() if e.fp else ""
+        raise Exception(f"Threads API {e.code}: {error_body}") from e
 
 
 def threads_post(text: str) -> dict:
@@ -181,7 +185,8 @@ def generate_drafts(count: int = None) -> list:
 - 等身大の気づき・発見・効率化のトーンで書く
 - AIっぽい表現禁止（「〇〇だと思っていませんか？」「いかがでしたか？」等）
 - 150〜300文字
-- ハッシュタグは末尾に2〜3個"""
+- ハッシュタグ（#）は絶対に使わない（インプレッション激減するため）
+- 最後の1行に読者への問いかけ（CTA）を入れる（例:「みんなはどう使ってる？」「試してみて」）"""
 
     post_types = [
         "discovery（発見・驚き型）",
@@ -203,7 +208,7 @@ def generate_drafts(count: int = None) -> list:
 
 必ず以下のJSON配列のみを出力:
 [
-  {{"hook_line": "1行目のフック", "full_text": "投稿全文（ハッシュタグ含む）", "post_type": "タイプ名"}}
+  {{"hook_line": "1行目のフック", "full_text": "投稿全文（ハッシュタグなし・最後にCTA）", "post_type": "タイプ名"}}
 ]
 
 {count}本分の配列を出力してください。"""
