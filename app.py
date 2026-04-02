@@ -131,20 +131,15 @@ def threads_api(method: str, endpoint: str, params=None, data=None):
         raise Exception(f"Threads API {e.code}: {error_body}") from e
 
 
-def threads_post(text: str) -> dict:
-    """Threadsにテキスト投稿（2ステップ）"""
-    uid = CONFIG["THREADS_USER_ID"]
-    if not uid or not CONFIG["THREADS_ACCESS_TOKEN"]:
-        raise ValueError("Threads APIの認証情報が設定されていません。")
+def threads_publish_container(uid: str, text: str, reply_to: str = None) -> str:
+    """コンテナ作成→公開の共通処理。post_idを返す。"""
+    create_data = {"media_type": "TEXT", "text": text}
+    if reply_to:
+        create_data["reply_to_id"] = reply_to
 
-    # Step 1: コンテナ作成
-    container = threads_api("POST", f"{uid}/threads", data={
-        "media_type": "TEXT",
-        "text": text,
-    })
+    container = threads_api("POST", f"{uid}/threads", data=create_data)
     container_id = container["id"]
 
-    # ステータス待ち
     for _ in range(6):
         try:
             status = threads_api("GET", container_id, params={"fields": "status"})
@@ -154,11 +149,31 @@ def threads_post(text: str) -> dict:
             pass
         time.sleep(5)
 
-    # Step 2: 公開
     result = threads_api("POST", f"{uid}/threads_publish", data={
         "creation_id": container_id,
     })
-    return {"post_id": result["id"], "container_id": container_id}
+    return result["id"]
+
+
+def threads_post(text: str, comment_text: str = "") -> dict:
+    """Threadsにテキスト投稿 + セルフリプライ（2ステップ×2）"""
+    uid = CONFIG["THREADS_USER_ID"]
+    if not uid or not CONFIG["THREADS_ACCESS_TOKEN"]:
+        raise ValueError("Threads APIの認証情報が設定されていません。")
+
+    # 本文を投稿
+    post_id = threads_publish_container(uid, text)
+
+    # セルフリプライ（コメント欄用の続き）
+    reply_id = None
+    if comment_text:
+        try:
+            time.sleep(3)
+            reply_id = threads_publish_container(uid, comment_text, reply_to=post_id)
+        except Exception:
+            pass  # セルフリプライ失敗は無視（本文は投稿済み）
+
+    return {"post_id": post_id, "reply_id": reply_id}
 
 
 # ════════════════════════════════════════════════════════
@@ -183,10 +198,11 @@ def generate_drafts(count: int = None) -> list:
 - 1行目で全てが決まる。必ず「固有名詞」（ChatGPT/Claude/Perplexity/Gemini等）と「数字」を入れること
 - 売上・収益・稼ぐ・副業の話は一切禁止
 - 等身大の気づき・発見・効率化のトーンで書く
-- AIっぽい表現禁止（「〇〇だと思っていませんか？」「いかがでしたか？」等）
-- 150〜300文字
+- AIっぽい表現禁止（「〇〇だと思っていませんか？」「いかがでしたか？」「〜と言えるでしょう」等）
+- 200〜350文字
 - ハッシュタグ（#）は絶対に使わない（インプレッション激減するため）
-- 最後の1行に読者への問いかけ（CTA）を入れる（例:「みんなはどう使ってる？」「試してみて」）"""
+- 最後の1行に読者への問いかけ（CTA）を入れる（例:「みんなはどう使ってる？」「試してみて」）
+- 本文で完結させない。コメント欄用の続きも書く"""
 
     post_types = [
         "discovery（発見・驚き型）",
@@ -203,12 +219,24 @@ def generate_drafts(count: int = None) -> list:
 ターゲット: {CONFIG['TARGET']}
 ジャンル: {CONFIG['NICHE']}
 
-投稿タイプを混ぜて作成:
+投稿タイプを混ぜて作成（{count}本とも違う型にすること）:
 {chr(10).join(f'- {pt}' for pt in post_types[:count])}
+
+【作成手順（必ずこの手順で作ること）】
+1. テーマを決める
+2. 1行目の候補を5つ考え、「有益そう」「意外性がある」「続きが気になる」のどれかを最も満たす1つを選ぶ
+3. 本文を書く（200〜350文字）
+4. コメント欄用の続き（セルフリプライ用）も書く
+5. セルフチェック:
+   □ 1行目で手が止まるか？
+   □ AI感のある表現がないか？
+   □ ハッシュタグが含まれていないか？
+   □ 売上・稼ぐ系の表現がないか？
+   全てOKなら完成
 
 必ず以下のJSON配列のみを出力:
 [
-  {{"hook_line": "1行目のフック", "full_text": "投稿全文（ハッシュタグなし・最後にCTA）", "post_type": "タイプ名"}}
+  {{"hook_line": "選んだ1行目", "full_text": "投稿全文（ハッシュタグなし・最後にCTA）", "comment_text": "コメント欄用の続き", "post_type": "タイプ名"}}
 ]
 
 {count}本分の配列を出力してください。"""
@@ -229,6 +257,7 @@ def generate_drafts(count: int = None) -> list:
             "id": str(uuid.uuid4())[:8],
             "hook_line": p.get("hook_line", ""),
             "text": p.get("full_text", ""),
+            "comment_text": p.get("comment_text", ""),
             "post_type": p.get("post_type", ""),
             "char_count": len(p.get("full_text", "")),
             "status": "pending",
@@ -364,10 +393,11 @@ def post_single(draft_id):
         return redirect(url_for("index"))
 
     try:
-        result = threads_post(target["text"])
+        result = threads_post(target["text"], target.get("comment_text", ""))
         target["status"] = "posted"
         target["posted_at"] = datetime.now().isoformat()
         target["post_id"] = result["post_id"]
+        target["reply_id"] = result.get("reply_id")
         save_json(DRAFTS_FILE, drafts)
 
         # 履歴に追加
@@ -375,7 +405,10 @@ def post_single(draft_id):
         history.insert(0, target)
         save_json(HISTORY_FILE, history)
 
-        flash(f"投稿完了！ Post ID: {result['post_id']}", "success")
+        msg = f"投稿完了！ Post ID: {result['post_id']}"
+        if result.get("reply_id"):
+            msg += f" (リプライ: {result['reply_id']})"
+        flash(msg, "success")
     except Exception as e:
         flash(f"投稿エラー: {e}", "error")
 
@@ -398,7 +431,7 @@ def post_all():
 
     for i, d in enumerate(approved):
         try:
-            result = threads_post(d["text"])
+            result = threads_post(d["text"], d.get("comment_text", ""))
             d["status"] = "posted"
             d["posted_at"] = datetime.now().isoformat()
             d["post_id"] = result["post_id"]

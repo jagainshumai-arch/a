@@ -363,6 +363,12 @@
                         {% if d.get('edited') %}<span style="color:var(--orange);">編集済み</span>{% endif %}
                     </div>
                     <div class="card-text">{{ d.text }}</div>
+                    {% if d.get('comment_text') %}
+                    <div style="margin-top:8px;padding:8px 12px;background:var(--surface2);border-radius:6px;font-size:13px;color:var(--text-dim);">
+                        <span style="color:var(--accent);font-weight:600;">💬 コメント欄:</span><br>
+                        {{ d.comment_text }}
+                    </div>
+                    {% endif %}
                 </div>
                 <div class="card-actions">
                     <form method="POST" action="{{ url_for('approve', draft_id=d.id) }}">
