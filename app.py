@@ -40,7 +40,7 @@ CONFIG = {
     "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY", ""),
     "AI_MODEL": os.getenv("AI_MODEL", "claude-sonnet-4-20250514"),
     "NICHE": "AI活用 × 気づき・知見・効率化",
-    "TARGET": "AIに興味はあるが活かしきれていない20〜40代の会社員・フリーランス",
+    "TARGET": "AIに興味はあるが活かしきれていない10代後半〜20代の大学生・専門学生・若手社会人",
     "POSTS_PER_BATCH": 5,
 }
 
