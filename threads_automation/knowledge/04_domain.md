@@ -126,3 +126,157 @@
 - Geminiのディープリサーチは60以上のサイトを自動巡回
 - ChatGPTのカスタム指示を使ってる人は全体の1割以下
 - AI関連の仕事の求人数は前年比3倍に増加
+
+## 推論モデル（Reasoning Model）の時代
+
+### 推論モデルとは
+通常のLLMが「即答」するのに対し、推論モデルは回答前に **内部で長い思考を展開**する。
+数学・コーディング・論理パズルで性能が劇的に上がる。
+
+### 主要推論モデル
+
+| モデル | 提供元 | 特徴 |
+|-------|-------|------|
+| **o1 / o1-pro** | OpenAI | 最初の推論モデル、2024年9月公開 |
+| **o3 / o3-mini** | OpenAI | 2025年1月公開、より高速 |
+| **Claude Opus 4.6 Extended Thinking** | Anthropic | 思考時間を調整可能 |
+| **DeepSeek-R1** | DeepSeek | オープンソース、671B MoE |
+| **Gemini 2.5 Thinking** | Google | 思考過程を可視化 |
+| **Qwen QwQ** | Alibaba | 32B オープンソース推論 |
+
+### 推論モデルが得意・苦手
+- **得意**: 数学問題、コーディング、論理パズル、アルゴリズム設計
+- **苦手**: 雑談、短文生成、速度重視タスク、クリエイティブライティング
+- **使い分け**: レポート作成→通常モデル、バグ原因究明→推論モデル
+
+### 推論モデルの凄さ（数字）
+- GPT-4o の AIME (数学五輪) 正答率: 13.4%
+- o1 の AIME 正答率: **83.3%**（約6倍）
+- o3 の Codeforces レーティング: **2727点**（競プロ上位0.01%）
+- DeepSeek-R1 の MATH-500: **97.3%**（ほぼ満点）
+
+## Claude Code の深掘り（情報系学生の武器）
+
+### 基本機能
+- ターミナル上でClaudeがファイル読み書き・コマンド実行
+- プロジェクト全体を理解してリファクタリング・実装
+- Git操作、PR作成、テスト実行まで一気通貫
+- MCP経由で任意のツール拡張
+
+### 学生が使える便利コマンド
+```bash
+# 初期化
+claude
+
+# ファイル指定して質問
+claude "src/main.py のバグを見つけて"
+
+# 全体リファクタ
+claude "このプロジェクトをType Hintに統一して"
+
+# テスト生成
+claude "utils.py の全関数に pytest テストを書いて"
+
+# コミット作成
+claude /commit
+```
+
+### Claude Code特有の強み
+- **並列ツール実行**: 複数コマンドを同時実行
+- **エージェントモード**: 長期タスクを自律的に進行
+- **Hooks**: イベント駆動で独自スクリプト実行
+- **Slash Commands**: 自分用コマンド定義
+- **Subagents**: 専門エージェントを呼び分け
+
+## AI コーディングツール比較（詳細版）
+
+| ツール | 種類 | 料金 | 強み |
+|-------|-----|-----|------|
+| **GitHub Copilot** | IDE拡張 | $10/月、学生無料 | VS Code統合、普及率最高 |
+| **Cursor** | AI IDE | $20/月 | Composer、Tab補完最強 |
+| **Claude Code** | CLI | 従量課金 | エージェント力、自律性 |
+| **Windsurf** | AI IDE | $15/月 | Cascade、自動文脈取得 |
+| **Devin** | 自律エージェント | $500/月 | フルオートSE |
+| **Codeium** | IDE拡張 | 個人無料 | 多言語対応 |
+| **Tabnine** | IDE拡張 | 個人無料〜 | プライバシー重視 |
+| **Amazon Q Developer** | IDE拡張 | 個人無料 | AWS統合 |
+
+### どれを使うべきか
+- **情報系学生の第一歩**: GitHub Copilot（学生無料）
+- **AIでガッツリ開発**: Cursor + Claude Sonnet
+- **ターミナル派**: Claude Code
+- **複雑タスク自動化**: Devin or Claude Code Agent Mode
+
+## マルチモーダルAI（画像・音声・動画）
+
+### 画像生成モデル
+| モデル | 特徴 |
+|-------|-----|
+| **DALL-E 3** | ChatGPT内蔵、プロンプト追従性高い |
+| **Midjourney v7** | 芸術性、美しさで王者 |
+| **Stable Diffusion 3.5 / Flux** | オープンソース、カスタム可 |
+| **Imagen 3** | Google、写実的 |
+| **Ideogram** | 文字入り画像が得意 |
+
+### 動画生成モデル
+| モデル | 特徴 |
+|-------|-----|
+| **Sora** | OpenAI、60秒動画 |
+| **Veo 3** | Google、音声付き |
+| **Runway Gen-4** | クリエイター向け |
+| **Kling** | 中国発、物理表現優秀 |
+| **Luma Dream Machine** | API提供、使いやすい |
+
+### 音声AI
+| モデル | 特徴 |
+|-------|-----|
+| **ElevenLabs** | 音声クローン、最高品質 |
+| **Whisper** | OpenAI、文字起こし標準 |
+| **Kyutai Moshi** | リアルタイム会話 |
+| **NotebookLM Audio Overview** | ポッドキャスト自動生成 |
+| **Suno v4 / Udio** | 楽曲生成 |
+
+## Function Calling / Tool Use
+
+### 概念
+LLMがテキスト生成だけでなく **外部ツール（API、DB、関数）を呼び出せる** 仕組み。
+
+### 対応状況
+- **OpenAI**: Function Calling / Tools API
+- **Anthropic**: Tool Use（XML風定義）
+- **Google**: Function Calling（Gemini）
+- **オープンソース**: Llama 3, Qwen, Mistral等多数
+
+### 実用例
+- ChatGPTが外部APIで天気・株価取得
+- Claudeがコードを実行してデータ分析
+- Geminiがカレンダーに予定追加
+- エージェントがWeb検索・DB操作
+
+### MCP との違い
+- **Function Calling**: モデルごとに独自規格
+- **MCP**: **標準規格**、一度書けば全クライアント対応
+
+## AI活用の最新投稿ネタ（情報系学生向け）
+
+### 学業系
+- 「レポートの参考文献調査、Perplexity + Claude Projects で30分で終わる」
+- 「英語論文を Claude に投げて、日本語で図解付きで理解する技」
+- 「ゼミの発表資料、Gemini で Google Slides に直接エクスポート」
+- 「統計の課題、GPT-4o に Python コード書かせて Google Colab で動かす」
+
+### 研究・開発系
+- 「arXiv の最新論文を NotebookLM で10分ポッドキャストに変換」
+- 「Claude Code で個人開発を1日完結、放課後に勝手にPR作成」
+- 「Hugging Face Spaces に自作AIを無料デプロイ」
+- 「ローカルLLMで勉強ノートを検索できるRAGを作った」
+
+### 就活・キャリア系
+- 「ES を Claude に添削させると、企業研究の深さまで指摘される」
+- 「面接練習を ChatGPT 音声モードで30分、緊張が消える」
+- 「技術面接の想定問答を Gemini で100問作って潰す」
+
+### 日常系
+- 「バイトシフトの調整、AI秘書で提案文まで生成」
+- 「サークルのイベントフライヤー、DALL-E 3 で10分」
+- 「レシート撮って Gemini に送ると、家計簿に自動記入」

@@ -39,8 +39,8 @@ CONFIG = {
     "THREADS_USER_ID": os.getenv("THREADS_USER_ID", ""),
     "ANTHROPIC_API_KEY": os.getenv("ANTHROPIC_API_KEY", ""),
     "AI_MODEL": os.getenv("AI_MODEL", "claude-sonnet-4-20250514"),
-    "NICHE": "AI活用 × 気づき・知見・効率化",
-    "TARGET": "AIに興味はあるが活かしきれていない10代後半〜20代の大学生・専門学生・若手社会人",
+    "NICHE": "情報系大学生の視点で語る AI・機械学習・情報セキュリティ・テック動向",
+    "TARGET": "AI/IT/セキュリティ/プログラミングに興味のある10代後半〜20代の大学生・専門学生・若手エンジニア",
     "POSTS_PER_BATCH": 5,
 }
 
@@ -191,15 +191,27 @@ def generate_drafts(count: int = None) -> list:
     system_prompt = f"""あなたはThreads投稿の専門ライターです。以下のナレッジを厳密に参照して投稿を作成してください。
 
 === ナレッジ ===
-{knowledge[:6000]}
+{knowledge[:20000]}
 === ここまで ===
 
 【最重要ルール】
-- 1行目で全てが決まる。必ず「固有名詞」（ChatGPT/Claude/Perplexity/Gemini等）と「数字」を入れること
+- 1行目で全てが決まる。必ず「固有名詞」（ChatGPT/Claude/Perplexity/Gemini/Python/Ollama/LangChain/Passkey/Kubernetes等）と「数字」を入れること
 - 売上・収益・稼ぐ・副業の話は一切禁止
 - 等身大の気づき・発見・効率化のトーンで書く
 - AIっぽい表現禁止（「〇〇だと思っていませんか？」「いかがでしたか？」「〜と言えるでしょう」等）
 - ハッシュタグ（#）は絶対に使わない（インプレッション激減するため）
+
+【ペルソナ（書き手の属性）】
+- 情報系の大学生。CS/情報工学/データサイエンス等を専攻
+- 主語は「自分」「僕」。フランクな学生の口調
+- 題材は「レポート」「ゼミ」「研究」「個人開発」「Kaggle」「バイト」「就活」「資格勉強」等の大学生日常
+- 契約書・上司・部下・社内プレゼン・商談等のビジネス用語は絶対に使わない
+
+【投稿テーマの幅（偏らせず多様に）】
+- AIツール活用（04_domain.md）: ChatGPT/Claude/Gemini/Perplexity の具体的な技
+- 情報セキュリティ（10_it_security.md）: ゼロトラスト/Passkey/AI攻撃/量子暗号/OWASP等
+- 機械学習・AIエンジニアリング（11_ml_engineering.md）: LLM内部構造/RAG/ローカルLLM/Python/LoRA等
+- テック業界動向（12_tech_trends.md）: 言語トレンド/クラウド/OSS/学生向けツール等
 
 【本文とリプライ欄の構造（タップ経済の最大化）】
 - 本文: 300〜500文字。核心をチラ見せしつつ、完結させない
