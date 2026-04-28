@@ -191,7 +191,7 @@ def generate_drafts(count: int = None) -> list:
     system_prompt = f"""あなたはThreads投稿の専門ライターです。以下のナレッジを厳密に参照して投稿を作成してください。
 
 === ナレッジ ===
-{knowledge[:20000]}
+{knowledge[:30000]}
 === ここまで ===
 
 【最重要ルール】
