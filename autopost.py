@@ -58,10 +58,11 @@ def _int_env(name: str, default: int) -> int:
 
 
 # 投稿の最適時間帯と本数は環境変数（.env）で調整できる。ソース改変は不要。
-#   POST_SLOTS=07:30,12:15,20:30   投稿する時間帯（カンマ区切り。本数はこの個数に連動）
-#   DAILY_LIMIT=3                  1日の最大投稿本数
-#   POST_INTERVAL_SEC=300          --count 連投時の投稿間隔（秒）
-DEFAULT_SLOTS = ["07:30", "12:15", "20:30"]
+#   POST_SLOTS=14:00,20:00   投稿する時間帯（カンマ区切り。本数はこの個数に連動）
+#   DAILY_LIMIT=2            1日の最大投稿本数
+#   POST_INTERVAL_SEC=300    --count 連投時の投稿間隔（秒）
+# デフォルトは「1日2本・6時間ごと」（夜20時のゴールデンタイムを軸に、その6時間前の14時）
+DEFAULT_SLOTS = ["14:00", "20:00"]
 
 CONFIG = {
     "THREADS_ACCESS_TOKEN": os.getenv("THREADS_ACCESS_TOKEN", ""),
@@ -71,7 +72,7 @@ CONFIG = {
     "NICHE": "AI活用 × 仕組み化 × 収益化（情報系大学生の視点）",
     "TARGET": "AIで稼ぎたい10代後半〜20代の大学生・専門学生・若手社会人",
     "POST_SLOTS": _parse_slots(os.getenv("POST_SLOTS", ""), DEFAULT_SLOTS),
-    "DAILY_LIMIT": _int_env("DAILY_LIMIT", 3),          # 1日の最大投稿本数
+    "DAILY_LIMIT": _int_env("DAILY_LIMIT", 2),          # 1日の最大投稿本数
     "POST_INTERVAL_SEC": _int_env("POST_INTERVAL_SEC", 300),  # --count 連投時の間隔（秒）
     "SELF_REPLY_DELAY_SEC": _int_env("SELF_REPLY_DELAY_SEC", 3),  # 本文→リプ欄の間隔（秒）
 }
