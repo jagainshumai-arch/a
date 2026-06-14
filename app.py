@@ -213,7 +213,8 @@ def generate_drafts(count: int = None) -> list:
 - AIツール活用（04_domain.md）: ChatGPT/Claude/Gemini の具体的な技・プロンプト
 - 情報セキュリティ（10_it_security.md）: ゼロトラスト/Passkey/AI攻撃等
 - 機械学習・エンジニアリング（11_ml_engineering.md）: LLM/RAG/ローカルLLM/Python等
-- テック業界動向（12_tech_trends.md）: 言語トレンド/クラウド/OSS等
+- テック業界動向（12_tech_trends.md）: 言語トレンド/クラウド/OSS/AI業界動向等
+- ビジネス設計（14_business_model.md）: 集客×単価×成約率/リスト/媒体選定/ファネル
 
 【投稿の2モード】
 通常モード（8割）: 価値提供中心。AI活用ノウハウで信頼を積み上げる
