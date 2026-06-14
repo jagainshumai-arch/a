@@ -79,6 +79,41 @@ python -m threads_automation.pipeline \
   --cycles 0
 ```
 
+## 全自動投稿アプリ（autopost.py）
+
+人の承認を挟まず「生成 → 安全チェック → 本文＋リプ欄を自動投稿」まで一気に回す
+スタンドアロンアプリ（リポジトリ直下 `autopost.py`）。
+
+```bash
+python autopost.py --now              # 今すぐ1本 生成して投稿
+python autopost.py --count 3 --now    # 今すぐ3本（5分間隔で）投稿
+python autopost.py --loop             # 朝/昼/夜の最適時間帯に自動投稿し続ける
+python autopost.py --now --dry-run    # 投稿せず生成結果だけ確認（API必要）
+python autopost.py --sample --dry-run # APIなしでパイプライン動作確認
+```
+
+**安全装置（全自動でも事故らないための仕組み）:**
+- 景表法NG表現の自動検出（「確実に稼げる」等を検出したら投稿せず再生成）
+- ハッシュタグの自動除去（Threadsでは逆効果のため）
+- 直近20件との重複チェック（同じ1行目を連投しない）
+- 1日の投稿上限（デフォルト3本）と最適時間帯スケジューリング
+- 本文＋リプ欄（セルフリプライ）でタップ経済構造を自動構築
+
+Webダッシュボード（`app.py`）の「⚡ 全自動で1本投稿」ボタンからも同じ処理を実行できる。
+
+## バズ収集・分析（buzz.py / /buzz）
+
+伸びた投稿を蓄積し、勝ちパターンを抽出してナレッジに反映する複利サイクル。
+
+```bash
+python -m threads_automation.buzz import   # competitor_posts.json を取り込む
+python -m threads_automation.buzz list     # 蓄積済みバズ投稿を一覧
+python -m threads_automation.buzz analyze  # 勝ちパターンを抽出 → knowledge/5_buzz/patterns.md
+```
+
+生データは `data/buzz/`（1投稿1ファイル＋`_index.md`自動生成）、
+抽出した型は `knowledge/5_buzz/patterns.md`（writerが最優先で参照）。
+
 ## 競合データの手動追加
 
 Threads APIでは他者の投稿を検索できないため、手動でデータを追加:

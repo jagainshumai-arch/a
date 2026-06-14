@@ -484,6 +484,46 @@ def post_all():
     return redirect(url_for("index"))
 
 
+@app.route("/auto_post", methods=["POST"])
+def auto_post():
+    """ワンクリック全自動: AIで1本生成 → 安全チェック → そのままThreadsへ投稿"""
+    import autopost  # 安全装置（NG検出・ハッシュタグ除去・重複チェック）を再利用
+
+    history = load_json(HISTORY_FILE)
+    try:
+        draft = None
+        for _ in range(3):
+            cand = generate_drafts(1)[0]
+            cand["text"] = autopost.strip_hashtags(cand["text"])
+            cand["comment_text"] = autopost.strip_hashtags(cand.get("comment_text", ""))
+            ng = autopost.check_ng(cand["text"] + "\n" + cand["comment_text"])
+            if ng:
+                continue
+            if autopost.is_duplicate(cand, history):
+                continue
+            draft = cand
+            break
+
+        if not draft:
+            flash("安全チェック（景表法/重複）を通る投稿を生成できませんでした", "error")
+            return redirect(url_for("index"))
+
+        result = threads_post(draft["text"], draft.get("comment_text", ""))
+        draft.update({
+            "status": "posted",
+            "posted_at": datetime.now().isoformat(),
+            "post_id": result["post_id"],
+            "reply_id": result.get("reply_id"),
+        })
+        history.insert(0, draft)
+        save_json(HISTORY_FILE, history)
+        flash(f"⚡ 全自動投稿 完了！ Post ID: {result['post_id']}", "success")
+    except Exception as e:
+        flash(f"全自動投稿エラー: {e}", "error")
+
+    return redirect(url_for("index"))
+
+
 @app.route("/regenerate/<draft_id>", methods=["POST"])
 def regenerate(draft_id):
     """1件だけ再生成"""

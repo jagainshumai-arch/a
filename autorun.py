@@ -31,8 +31,8 @@ CONFIG = {
     "AI_MODEL": "claude-sonnet-4-20250514",
 
     # パイプライン設定
-    "NICHE": "AI活用 × 気づき・知見・効率化",
-    "TARGET": "AIに興味はあるが活かしきれていない20〜40代の会社員・フリーランス",
+    "NICHE": "AI活用 × 仕組み化 × 収益化（情報系大学生の視点）",
+    "TARGET": "AIで稼ぎたい10代後半〜20代の大学生・専門学生・若手社会人",
     "POSTS_PER_CYCLE": 3,          # 1サイクルで投稿する本数
     "POST_INTERVAL_SEC": 300,      # 投稿間隔（秒）= 5分
     "CYCLE_INTERVAL_MIN": 60,      # サイクル間隔（分）
@@ -50,15 +50,19 @@ CONFIG = {
 # ════════════════════════════════════════════════════════
 
 def load_knowledge():
-    """knowledgeディレクトリから全ナレッジを読み込む"""
+    """knowledgeディレクトリから全ナレッジを再帰的に読み込む（カテゴリ別サブディレクトリ対応）"""
     kdir = CONFIG["KNOWLEDGE_DIR"]
     if not os.path.isdir(kdir):
         return ""
+    paths = []
+    for root, _dirs, files in os.walk(kdir):
+        for fname in files:
+            if fname.endswith(".md"):
+                paths.append(os.path.join(root, fname))
     parts = []
-    for fname in sorted(os.listdir(kdir)):
-        if fname.endswith(".md"):
-            with open(os.path.join(kdir, fname), encoding="utf-8") as f:
-                parts.append(f.read())
+    for path in sorted(paths, key=lambda p: os.path.relpath(p, kdir)):
+        with open(path, encoding="utf-8") as f:
+            parts.append(f.read())
     return "\n\n---\n\n".join(parts)
 
 # ════════════════════════════════════════════════════════
@@ -111,17 +115,15 @@ def threads_api(method, endpoint, params=None, data=None):
         return json.loads(resp.read().decode())
 
 
-def threads_post(text):
-    """Threadsにテキスト投稿する（2ステップ）"""
+def threads_publish_container(text, reply_to=None):
+    """コンテナ作成→公開の共通処理。post_idを返す。"""
     uid = CONFIG["THREADS_USER_ID"]
+    create_data = {"media_type": "TEXT", "text": text}
+    if reply_to:
+        create_data["reply_to_id"] = reply_to
 
-    # Step 1: コンテナ作成
-    container = threads_api("POST", f"{uid}/threads", data={
-        "media_type": "TEXT",
-        "text": text,
-    })
+    container = threads_api("POST", f"{uid}/threads", data=create_data)
     container_id = container["id"]
-    print(f"    コンテナ作成: {container_id}")
 
     # 処理待ち
     for _ in range(6):
@@ -133,11 +135,24 @@ def threads_post(text):
             pass
         time.sleep(5)
 
-    # Step 2: 公開
     result = threads_api("POST", f"{uid}/threads_publish", data={
         "creation_id": container_id,
     })
     return result["id"]
+
+
+def threads_post(text, comment_text=""):
+    """本文を投稿し、リプ欄をセルフリプライする（タップ経済の構造）"""
+    post_id = threads_publish_container(text)
+    print(f"    本文公開: {post_id}")
+    if comment_text:
+        try:
+            time.sleep(3)
+            reply_id = threads_publish_container(comment_text, reply_to=post_id)
+            print(f"    リプ欄公開: {reply_id}")
+        except Exception as e:
+            print(f"    ⚠️ リプ欄投稿失敗（本文は投稿済み）: {e}")
+    return post_id
 
 
 def threads_get_posts(limit=25):
@@ -314,22 +329,22 @@ def step_compose(research):
     knowledge = load_knowledge()
     system_prompt = f"""あなたはThreads投稿の専門家です。以下のナレッジを参照して投稿を作成してください。
 
-=== ナレッジ（重要部分のみ） ===
-{knowledge[:4000]}
+=== ナレッジ ===
+{knowledge[:30000]}
 === ここまで ===
 
 【最重要：タップ経済の原則】
 1行目で全てが決まる。必ず「固有名詞」（ChatGPT/Claude/Perplexity等）と「数字」を入れること。
 
 【ルール】
-1. 1行目は固有名詞+数字でベネフィット提示
-2. 気づき→理由→具体例→結論で構成
-3. 150〜300文字
-4. AIっぽい表現禁止（「〇〇だと思っていませんか？」「いかがでしたか？」等）
-5. 具体的な数字・体験を入れる
-6. ハッシュタグは末尾に2〜3個
-7. 売上・収益・稼ぐ・副業の話は一切禁止
-8. 等身大の体験・気づきトーンで書く"""
+1. 1行目は固有名詞+数字でフックを作る
+2. 本文（300〜500文字）は核心をチラ見せし、最後は「リプ欄に書いた↓」で終わる（完結させない）
+3. AIっぽい表現禁止（「〇〇だと思っていませんか？」「いかがでしたか？」「〜と言えるでしょう」等）
+4. ハッシュタグ（#）は絶対に使わない（インプレッション激減のため）
+5. 景表法違反は厳禁（「確実に稼げます」「誰でも月○万」「リスクゼロ」「100%再現」等）
+6. 収益・売上の話はOK（自分の実績を語るのはOK、他人への結果保証はNG）
+7. ペルソナは情報系の大学生。主語は「自分」「僕」のフランクな口調
+8. バズ分析（5_buzz/patterns.md）と参考型（2_writing/06_references.md）を最優先で参照"""
 
     topics = research.get("trending_topics", []) + research.get("recommended_angles", [])
     post_types = ["benefit", "list", "story", "how_to", "before_after"]
@@ -349,9 +364,12 @@ def step_compose(research):
 ターゲット: {CONFIG['TARGET']}
 投稿タイプ: {pt}
 
+本文は300〜500文字で最後を「リプ欄に書いた↓」等で終わらせ、
+リプ欄（comment_text）には具体的な手順・プロンプト・裏ワザ＋最後にCTAを書く。
+
 JSON形式のみで出力:
-{{"hook_line": "1行目", "full_text": "投稿全文"}}""",
-                system=system_prompt, max_tokens=500)
+{{"hook_line": "1行目", "full_text": "本文", "comment_text": "リプ欄"}}""",
+                system=system_prompt, max_tokens=1200)
 
             start = raw.find("{")
             end = raw.rfind("}") + 1
@@ -359,6 +377,7 @@ JSON形式のみで出力:
 
             draft = {
                 "text": parsed["full_text"],
+                "comment_text": parsed.get("comment_text", ""),
                 "topic": topic,
                 "post_type": pt,
                 "hook_line": parsed["hook_line"],
@@ -390,10 +409,11 @@ def step_post(drafts):
     published = []
     for i, draft in enumerate(drafts):
         try:
-            post_id = threads_post(draft["text"])
+            post_id = threads_post(draft["text"], draft.get("comment_text", ""))
             entry = {
                 "post_id": post_id,
                 "text": draft["text"],
+                "comment_text": draft.get("comment_text", ""),
                 "topic": draft.get("topic", ""),
                 "post_type": draft.get("post_type", ""),
                 "hook_line": draft.get("hook_line", ""),

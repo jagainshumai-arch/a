@@ -322,6 +322,12 @@
                 </button>
             </form>
 
+            <form method="POST" action="{{ url_for('auto_post') }}" onsubmit="return confirm('AIが1本生成して、安全チェック後そのままThreadsへ自動投稿します。よろしいですか？')">
+                <button type="submit" class="btn btn-green" onclick="this.disabled=true;this.innerText='全自動投稿中...';this.form.submit();">
+                    ⚡ 全自動で1本投稿
+                </button>
+            </form>
+
             {% if approved|length > 0 %}
             <form method="POST" action="{{ url_for('post_all') }}" onsubmit="return confirm('承認済み {{ approved|length }}件を全てThreadsに投稿しますか？\n投稿間隔は5分です。')">
                 <button type="submit" class="btn btn-green">
