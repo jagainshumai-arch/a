@@ -36,6 +36,33 @@ KNOWLEDGE_DIR = BASE_DIR / "threads_automation" / "knowledge"
 HISTORY_FILE = DATA_DIR / "history.json"
 DATA_DIR.mkdir(exist_ok=True)
 
+def _parse_slots(raw: str, default: list[str]) -> list[str]:
+    """ "07:30,12:15,20:30" のような文字列を HH:MM のリストに変換（不正値は無視）"""
+    if not raw:
+        return default
+    slots = []
+    for token in raw.replace("、", ",").split(","):
+        token = token.strip()
+        if re.fullmatch(r"\d{1,2}:\d{2}", token):
+            hh, mm = map(int, token.split(":"))
+            if 0 <= hh <= 23 and 0 <= mm <= 59:
+                slots.append(f"{hh:02d}:{mm:02d}")
+    return slots or default
+
+
+def _int_env(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, "").strip() or default)
+    except ValueError:
+        return default
+
+
+# 投稿の最適時間帯と本数は環境変数（.env）で調整できる。ソース改変は不要。
+#   POST_SLOTS=07:30,12:15,20:30   投稿する時間帯（カンマ区切り。本数はこの個数に連動）
+#   DAILY_LIMIT=3                  1日の最大投稿本数
+#   POST_INTERVAL_SEC=300          --count 連投時の投稿間隔（秒）
+DEFAULT_SLOTS = ["07:30", "12:15", "20:30"]
+
 CONFIG = {
     "THREADS_ACCESS_TOKEN": os.getenv("THREADS_ACCESS_TOKEN", ""),
     "THREADS_USER_ID": os.getenv("THREADS_USER_ID", ""),
@@ -43,12 +70,19 @@ CONFIG = {
     "AI_MODEL": os.getenv("AI_MODEL", "claude-sonnet-4-20250514"),
     "NICHE": "AI活用 × 仕組み化 × 収益化（情報系大学生の視点）",
     "TARGET": "AIで稼ぎたい10代後半〜20代の大学生・専門学生・若手社会人",
-    # 投稿の最適時間帯（HH:MM）。朝の通勤・昼休み・夜のゴールデンタイム
-    "POST_SLOTS": ["07:30", "12:15", "20:30"],
-    "DAILY_LIMIT": 3,            # 1日の最大投稿本数
-    "POST_INTERVAL_SEC": 300,    # --count 連投時の投稿間隔（秒）
-    "SELF_REPLY_DELAY_SEC": 3,   # 本文→リプ欄の間隔（秒）
+    "POST_SLOTS": _parse_slots(os.getenv("POST_SLOTS", ""), DEFAULT_SLOTS),
+    "DAILY_LIMIT": _int_env("DAILY_LIMIT", 3),          # 1日の最大投稿本数
+    "POST_INTERVAL_SEC": _int_env("POST_INTERVAL_SEC", 300),  # --count 連投時の間隔（秒）
+    "SELF_REPLY_DELAY_SEC": _int_env("SELF_REPLY_DELAY_SEC", 3),  # 本文→リプ欄の間隔（秒）
 }
+
+
+def apply_scheduling_env():
+    """.env 読み込み後に、スケジューリング系の設定を環境変数から反映し直す。"""
+    CONFIG["POST_SLOTS"] = _parse_slots(os.getenv("POST_SLOTS", ""), DEFAULT_SLOTS)
+    CONFIG["DAILY_LIMIT"] = _int_env("DAILY_LIMIT", CONFIG["DAILY_LIMIT"])
+    CONFIG["POST_INTERVAL_SEC"] = _int_env("POST_INTERVAL_SEC", CONFIG["POST_INTERVAL_SEC"])
+    CONFIG["SELF_REPLY_DELAY_SEC"] = _int_env("SELF_REPLY_DELAY_SEC", CONFIG["SELF_REPLY_DELAY_SEC"])
 
 # 景表法・誇大広告に該当する表現（検出したら投稿しない）
 NG_PATTERNS = [
@@ -402,6 +436,8 @@ def load_dotenv():
             os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
     for key in ("THREADS_ACCESS_TOKEN", "THREADS_USER_ID", "ANTHROPIC_API_KEY"):
         CONFIG[key] = os.getenv(key, CONFIG[key])
+    CONFIG["AI_MODEL"] = os.getenv("AI_MODEL", CONFIG["AI_MODEL"])
+    apply_scheduling_env()  # POST_SLOTS / DAILY_LIMIT 等を .env から反映
 
 
 def main(argv=None):
@@ -419,6 +455,8 @@ def main(argv=None):
     print("=" * 56)
     print(f"  Claude API : {'設定済み' if CONFIG['ANTHROPIC_API_KEY'] else '未設定'}")
     print(f"  Threads API: {'設定済み' if CONFIG['THREADS_ACCESS_TOKEN'] else '未設定'}")
+    print(f"  投稿時間帯 : {', '.join(CONFIG['POST_SLOTS'])}")
+    print(f"  1日の上限  : {CONFIG['DAILY_LIMIT']}本")
     print("=" * 56)
 
     if args.loop:
