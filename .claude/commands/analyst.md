@@ -5,7 +5,7 @@
 ## 読み込むファイル
 - `threads_automation/data/insights_history.json`
 - `threads_automation/data/publish_history.json`
-- `threads_automation/knowledge/01_profile.md`〜`09_monetization.md`（全ナレッジ）
+- `threads_automation/knowledge/` 配下の全ナレッジ（`1_identity/` `2_writing/` `3_strategy/` `4_domain/` `5_buzz/` と `07_ng-rules.md`）
 
 ## 分析してほしいこと
 

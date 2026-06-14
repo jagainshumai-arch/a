@@ -66,9 +66,9 @@ def load_knowledge() -> str:
     if not KNOWLEDGE_DIR.is_dir():
         return ""
     parts = []
-    for f in sorted(KNOWLEDGE_DIR.iterdir()):
-        if f.suffix == ".md":
-            parts.append(f.read_text(encoding="utf-8"))
+    # カテゴリ別サブディレクトリも再帰的に読み込む（relパスでソートして順序を安定化）
+    for f in sorted(KNOWLEDGE_DIR.rglob("*.md"), key=lambda p: p.relative_to(KNOWLEDGE_DIR).as_posix()):
+        parts.append(f.read_text(encoding="utf-8"))
     return "\n\n---\n\n".join(parts)
 
 
@@ -210,11 +210,12 @@ def generate_drafts(count: int = None) -> list:
 
 【投稿テーマの幅（偏らせず多様に）】
 - AI×収益化・仕組み化: 自動で売上を出す仕組み、コンテンツ販売、成功体験
-- AIツール活用（04_domain.md）: ChatGPT/Claude/Gemini の具体的な技・プロンプト
-- 情報セキュリティ（10_it_security.md）: ゼロトラスト/Passkey/AI攻撃等
-- 機械学習・エンジニアリング（11_ml_engineering.md）: LLM/RAG/ローカルLLM/Python等
-- テック業界動向（12_tech_trends.md）: 言語トレンド/クラウド/OSS/AI業界動向等
-- ビジネス設計（14_business_model.md）: 集客×単価×成約率/リスト/媒体選定/ファネル
+- AIツール活用（4_domain/04_domain.md）: ChatGPT/Claude/Gemini の具体的な技・プロンプト
+- 情報セキュリティ（4_domain/10_it_security.md）: ゼロトラスト/Passkey/AI攻撃等
+- 機械学習・エンジニアリング（4_domain/11_ml_engineering.md）: LLM/RAG/ローカルLLM/Python等
+- テック業界動向（4_domain/12_tech_trends.md）: 言語トレンド/クラウド/OSS/AI業界動向等
+- ビジネス設計（3_strategy/14_business_model.md）: 集客×単価×成約率/リスト/媒体選定/ファネル
+- バズ分析の勝ちパターン（5_buzz/patterns.md）: 実収集データから抽出した型を最優先で参照
 
 【投稿の2モード】
 通常モード（8割）: 価値提供中心。AI活用ノウハウで信頼を積み上げる

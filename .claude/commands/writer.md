@@ -3,10 +3,11 @@
 以下のファイルを読み込んで、Threadsの投稿を3本作ってください。
 
 ## 読み込むファイル
-- `threads_automation/knowledge/01_profile.md`（このアカウントは誰か）
-- `threads_automation/knowledge/02_target.md`（誰に向けて書くか）
-- `threads_automation/knowledge/05_writing.md`（書き方のルール）
-- `threads_automation/knowledge/06_references.md`（バズった投稿の実例）
+- `threads_automation/knowledge/1_identity/01_profile.md`（このアカウントは誰か）
+- `threads_automation/knowledge/1_identity/02_target.md`（誰に向けて書くか）
+- `threads_automation/knowledge/2_writing/05_writing.md`（書き方のルール）
+- `threads_automation/knowledge/2_writing/06_references.md`（バズった投稿の実例）
+- `threads_automation/knowledge/5_buzz/patterns.md`（実収集データから抽出した最新の勝ちパターン）
 - `threads_automation/knowledge/07_ng-rules.md`（やっちゃいけないこと）
 - `threads_automation/data/next-topics.md`（アナリストが提案した次のテーマ）
 
@@ -14,7 +15,7 @@
 
 1. next-topics.md から今回書くテーマを1つ選ぶ
 
-2. 06_references.md のバズった投稿から「構造」を1つ選ぶ
+2. 06_references.md または 5_buzz/patterns.md のバズった投稿から「構造」を1つ選ぶ
    （丸パクリ禁止。構造だけ真似る）
 
 3. 1行目を5案出して、一番強い1つを選ぶ
@@ -29,7 +30,7 @@
    □ 1行目で手が止まるか？
    □ AI感のある表現（「〜と言えるでしょう」等）がないか？
    □ 07_ng-rules.md に違反してないか？
-   □ 05_writing.md の口調・文体に合ってるか？
+   □ 2_writing/05_writing.md の口調・文体に合ってるか？
 
 ## 保存先
 - 完成した投稿を `threads_automation/data/post-queue.md` に追記保存

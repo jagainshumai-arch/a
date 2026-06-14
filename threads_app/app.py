@@ -80,9 +80,9 @@ def load_knowledge() -> str:
     if not KNOWLEDGE_DIR.is_dir():
         return ""
     parts = []
-    for f in sorted(KNOWLEDGE_DIR.iterdir()):
-        if f.suffix == ".md":
-            parts.append(f.read_text(encoding="utf-8"))
+    # カテゴリ別サブディレクトリも再帰的に読み込む（relパスでソートして順序を安定化）
+    for f in sorted(KNOWLEDGE_DIR.rglob("*.md"), key=lambda p: p.relative_to(KNOWLEDGE_DIR).as_posix()):
+        parts.append(f.read_text(encoding="utf-8"))
     return "\n\n---\n\n".join(parts)
 
 

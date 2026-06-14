@@ -7,7 +7,7 @@
 - `threads_automation/data/post-queue.md`（投稿キュー）
 - `threads_automation/data/next-topics.md`（ネタストック）
 - `threads_automation/data/analysis-latest.md`（最新の分析結果）
-- `threads_automation/knowledge/01_profile.md`〜`09_monetization.md`（ナレッジファイル全て）
+- `threads_automation/knowledge/` 配下の全ナレッジ（`1_identity/` `2_writing/` `3_strategy/` `4_domain/` `5_buzz/` と `07_ng-rules.md`）
 
 ## チェック項目
 
