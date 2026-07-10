@@ -24,7 +24,8 @@ from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import urlparse
 
-import autopost  # 同じフォルダの autopost.py を再利用
+import autopost   # 同じフォルダの autopost.py を再利用
+import typefully  # Typefully 予約投稿連携
 
 autopost.load_dotenv()  # .env を読み込んで CONFIG を確定させる
 
@@ -39,6 +40,7 @@ def build_status() -> dict:
     return {
         "claude_ready": bool(cfg["ANTHROPIC_API_KEY"]),
         "threads_ready": bool(cfg["THREADS_ACCESS_TOKEN"] and cfg["THREADS_USER_ID"]),
+        "typefully_ready": typefully.is_configured(),
         "slots": cfg["POST_SLOTS"],
         "daily_limit": cfg["DAILY_LIMIT"],
         "posted_today": autopost.posted_today(history),
@@ -109,6 +111,31 @@ def delete_saved_draft(draft_id: str) -> dict:
     drafts = autopost.load_drafts()
     autopost.save_drafts([d for d in drafts if d.get("id") != draft_id])
     return {"ok": True, "removed": draft_id}
+
+
+# ---- Typefully 予約投稿 ----
+
+def schedule_preview_typefully(draft: dict, at: str = "next-free-slot") -> dict:
+    """プレビュー中の下書きをTypefullyに予約下書きとして送る。"""
+    draft.setdefault("hook_line", (draft.get("text", "").split("\n") or [""])[0])
+    draft.setdefault("comment_text", "")
+    # 送信前にハッシュタグ除去・NGチェックは通しておく（重複チェックは予約なので緩め）
+    autopost.vet_draft(draft, [])
+    res = typefully.create_scheduled_draft(
+        draft["text"], draft.get("comment_text"), publish_at=at)
+    return {"ok": True, "typefully": res}
+
+
+def schedule_saved_draft_typefully(draft_id: str, at: str = "next-free-slot") -> dict:
+    """保存済み下書きをTypefullyに予約し、下書きストアから取り除く。"""
+    drafts = autopost.load_drafts()
+    target = next((d for d in drafts if d.get("id") == draft_id), None)
+    if not target:
+        raise ValueError("下書きが見つかりません（既に投稿/削除済みの可能性）。")
+    res = typefully.create_scheduled_draft(
+        target["text"], target.get("comment_text"), publish_at=at)
+    autopost.save_drafts([d for d in drafts if d.get("id") != draft_id])
+    return {"ok": True, "typefully": res}
 
 
 def recent_history(limit: int = 30) -> list:
@@ -237,9 +264,10 @@ PAGE = r"""<!DOCTYPE html>
       <div class="body-text" id="pComment"></div>
       <div class="btnrow" style="margin-top:16px">
         <button class="btn ghost" id="btnRegen">↻ もう一度生成</button>
-        <button class="btn primary" id="btnPost">🚀 この内容でThreadsに投稿</button>
+        <button class="btn primary" id="btnPost">🚀 今すぐThreadsに投稿</button>
       </div>
-      <div class="note">投稿すると本文が公開され、数秒後にリプ欄が自動でセルフリプライされます。</div>
+      <button class="btn ghost" id="btnSchedule" style="margin-top:10px">🗓 Typefullyで予約投稿（次の空き枠）</button>
+      <div class="note">「今すぐ投稿」は本文＋リプ欄を即公開。「予約投稿」はTypefullyの次の空きスロットに予約（クラウドが自動投稿するのでPCは開いていなくてOK）。</div>
     </div>
   </div>
 
@@ -286,7 +314,9 @@ async function loadStatus(){
     const b = document.getElementById('badges');
     b.innerHTML =
       `<span class="badge ${s.claude_ready?'ok':'ng'}">Claude API ${s.claude_ready?'接続OK':'未設定'}</span>`+
-      `<span class="badge ${s.threads_ready?'ok':'ng'}">Threads API ${s.threads_ready?'接続OK':'未設定'}</span>`;
+      `<span class="badge ${s.threads_ready?'ok':'ng'}">Threads API ${s.threads_ready?'接続OK':'未設定'}</span>`+
+      `<span class="badge ${s.typefully_ready?'ok':'warn'}">Typefully ${s.typefully_ready?'連携OK':'未連携'}</span>`;
+    window._typefullyReady = s.typefully_ready;
     const remain = Math.max(0, s.daily_limit - s.posted_today);
     document.getElementById('stats').innerHTML =
       stat('投稿時間帯', s.slots.join(' / ')) +
@@ -370,6 +400,36 @@ async function loadHistory(){
     '<div class="empty">履歴の取得に失敗: '+esc(e.message)+'</div>'; }
 }
 
+async function scheduleCurrent(){
+  if(!currentDraft) return;
+  if(!window._typefullyReady){ toast('Typefully未連携（.envにTYPEFULLY_API_KEY）', 'err'); return; }
+  if(!confirm('この内容をTypefullyの次の空き枠に予約します。よろしいですか？')) return;
+  const btn = document.getElementById('btnSchedule');
+  const orig = btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 予約中…';
+  try{
+    await api('/api/schedule_preview', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({...currentDraft, at:'next-free-slot'})
+    });
+    toast('🗓 Typefullyに予約しました', 'ok');
+  }catch(e){ toast('予約失敗: '+e.message, 'err'); }
+  finally{ btn.disabled=false; btn.innerHTML=orig; }
+}
+
+async function scheduleDraft(id, btn){
+  if(!window._typefullyReady){ toast('Typefully未連携（.envにTYPEFULLY_API_KEY）', 'err'); return; }
+  if(!confirm('この下書きをTypefullyの次の空き枠に予約します。よろしいですか？')) return;
+  const orig = btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 予約中…';
+  try{
+    await api('/api/schedule_draft', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({id, at:'next-free-slot'})
+    });
+    toast('🗓 Typefullyに予約しました', 'ok');
+    loadDrafts();
+  }catch(e){ toast('予約失敗: '+e.message, 'err'); btn.disabled=false; btn.innerHTML=orig; }
+}
+
 async function loadDrafts(){
   try{
     const items = await api('/api/drafts');
@@ -392,12 +452,14 @@ async function loadDrafts(){
         </details>
         <div class="btnrow" style="margin-top:10px">
           <button class="btn ghost btn-del" data-id="${esc(d.id)}">🗑 削除</button>
-          <button class="btn primary btn-postdraft" data-id="${esc(d.id)}">🚀 これを投稿</button>
+          <button class="btn primary btn-postdraft" data-id="${esc(d.id)}">🚀 今すぐ投稿</button>
         </div>
+        <button class="btn ghost btn-scheddraft" data-id="${esc(d.id)}" style="margin-top:8px">🗓 Typefullyで予約</button>
       </div>`;
     }).join('');
     box.querySelectorAll('.btn-postdraft').forEach(b=> b.onclick = ()=>postSavedDraft(b.dataset.id, b));
     box.querySelectorAll('.btn-del').forEach(b=> b.onclick = ()=>deleteDraft(b.dataset.id));
+    box.querySelectorAll('.btn-scheddraft').forEach(b=> b.onclick = ()=>scheduleDraft(b.dataset.id, b));
   }catch(e){ document.getElementById('drafts').innerHTML =
     '<div class="empty">下書きの取得に失敗: '+esc(e.message)+'</div>'; }
 }
@@ -441,6 +503,7 @@ document.getElementById('btnGen').onclick = ()=>generate(false);
 document.getElementById('btnSample').onclick = ()=>generate(true);
 document.getElementById('btnRegen').onclick = ()=>generate(false);
 document.getElementById('btnPost').onclick = postNow;
+document.getElementById('btnSchedule').onclick = scheduleCurrent;
 document.getElementById('btnMake').onclick = makeDrafts;
 document.getElementById('btnReloadDrafts').onclick = loadDrafts;
 
@@ -513,6 +576,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(post_saved_draft(body.get("id", "")))
             elif path == "/api/delete_draft":
                 self._send_json(delete_saved_draft(body.get("id", "")))
+            elif path == "/api/schedule_preview":
+                at = body.pop("at", "next-free-slot")
+                self._send_json(schedule_preview_typefully(body, at))
+            elif path == "/api/schedule_draft":
+                self._send_json(schedule_saved_draft_typefully(
+                    body.get("id", ""), body.get("at", "next-free-slot")))
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:

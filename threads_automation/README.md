@@ -147,6 +147,30 @@ setup_schedule.bat        :: 毎朝9時の予約を登録（1回だけ実行）
 3. 操作: プログラムの開始 → `morning_drafts.bat` を選択
 4. 完了。「スリープ解除して実行」「見逃したら起動時に実行」はプロパティで調整可
 
+### Typefully 連携（クラウド予約投稿・PCオフでもOK）
+
+生成した投稿を Typefully に「予約下書き」として送り、クラウド側で予約時刻に
+自動投稿する。自分のPCが起動していなくても投稿されるのが利点（タスクスケジューラの
+「PCが起動している必要」を回避できる）。Typefully API v2 を使用。
+
+**準備:**
+1. Typefully（有料プラン）で Threads アカウントを連携
+2. Settings → API で APIキーを取得
+3. `.env` に `TYPEFULLY_API_KEY=...` を追加
+
+```bash
+python typefully.py --check     # 接続確認＆投稿先(social set)一覧
+python typefully.py --sample    # サンプルを次の空き枠に予約
+python typefully.py --drafts    # data/drafts.json の下書きを全部 予約送信
+python typefully.py --drafts --at 2026-07-11T09:00:00Z  # 時刻指定で予約
+```
+
+`--at` は `next-free-slot`（既定・Typefullyの次の空きスロット）/ `now`（即時）/ ISO日時。
+本文＋リプ欄はスレッド（本文→セルフリプライ）として送られる。
+
+webapp（`python webapp.py`）でも、プレビューや各下書きの「🗓 Typefullyで予約」
+ボタンから同じ予約ができる。
+
 **投稿時間帯・本数の調整（ソース改変不要・`.env`で設定）:**
 
 ```bash
