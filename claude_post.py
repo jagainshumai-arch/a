@@ -23,6 +23,7 @@ autopost.py は Anthropic API を1回叩いて生成するが、こちらは `cl
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -81,16 +82,26 @@ def generate_with_claude_code(model: str | None = None,
             "  ログイン    : claude （初回に認証）\n"
             "  または python claude_post.py --now --allow-fallback でAPI生成に切替")
 
-    cmd = ["claude", "-p", GEN_PROMPT, "--output-format", "json",
-           "--allowedTools", *READONLY_TOOLS]
+    # プロンプトは標準入力から渡す（巨大＆改行・引用符を含むため、引数に載せない）。
+    # 引数側には特殊文字が無いので、Windowsの .cmd シムも shell 経由で安全に起動できる。
+    exe = shutil.which("claude") or "claude"
+    args = ["-p", "--output-format", "json", "--allowedTools", *READONLY_TOOLS]
     if model:
-        cmd += ["--model", model]
+        args += ["--model", model]
 
-    proc = subprocess.run(
-        cmd, cwd=str(autopost.BASE_DIR),
-        capture_output=True, text=True, timeout=timeout)
+    run_kwargs = dict(input=GEN_PROMPT, cwd=str(autopost.BASE_DIR),
+                      capture_output=True, text=True, timeout=timeout,
+                      encoding="utf-8")
+    if os.name == "nt":
+        # npm製の claude は claude.cmd（バッチ）。CreateProcessで直接起動できないため
+        # shell経由で実行する。引数に特殊文字は無く、プロンプトはstdinなので安全。
+        cmdline = " ".join([f'"{exe}"'] + args)
+        proc = subprocess.run(cmdline, shell=True, **run_kwargs)
+    else:
+        proc = subprocess.run([exe] + args, **run_kwargs)
     if proc.returncode != 0:
-        raise RuntimeError(f"claude CLI がエラー終了(code={proc.returncode}):\n{proc.stderr[:500]}")
+        raise RuntimeError(f"claude CLI がエラー終了(code={proc.returncode}):\n"
+                           f"{(proc.stderr or '')[:500]}")
 
     raw = proc.stdout.strip()
     # `--output-format json` は {"type":"result","result":"<本文>", ...} を返す。
