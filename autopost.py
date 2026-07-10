@@ -336,6 +336,71 @@ def posted_today(history: list) -> int:
 
 
 # ════════════════════════════════════════════════════════
+#  下書き（投稿せず作り置きしてレビューする）
+# ════════════════════════════════════════════════════════
+
+DRAFTS_FILE = DATA_DIR / "drafts.json"
+DRAFTS_DIR = DATA_DIR / "drafts"
+
+
+def load_drafts() -> list:
+    if DRAFTS_FILE.exists():
+        return json.loads(DRAFTS_FILE.read_text(encoding="utf-8"))
+    return []
+
+
+def save_drafts(drafts: list):
+    DRAFTS_FILE.write_text(json.dumps(drafts, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _write_drafts_markdown():
+    """本日分の下書きを人が読みやすいMarkdownファイルに書き出す（スマホでも確認用）。"""
+    DRAFTS_DIR.mkdir(exist_ok=True)
+    day = date.today().isoformat()
+    todays = [d for d in load_drafts() if d.get("created_at", "")[:10] == day]
+    if not todays:
+        return
+    lines = [f"# {day} の下書き（{len(todays)}本）\n"]
+    for i, d in enumerate(todays, 1):
+        lines.append(f"\n## {i}. [{d.get('post_type','')}]\n")
+        lines.append(d.get("text", ""))
+        lines.append("\n\n**--- リプ欄（セルフリプライ）---**\n")
+        lines.append(d.get("comment_text", ""))
+        lines.append("\n")
+    (DRAFTS_DIR / f"{day}.md").write_text("".join(lines), encoding="utf-8")
+
+
+def generate_drafts(n: int, use_sample: bool = False, max_retries: int = 3) -> list:
+    """投稿せず、安全チェック済みの下書きを n 本生成して drafts.json に保存する。"""
+    history = load_history()
+    drafts = load_drafts()
+    dedup_base = drafts + history  # 既存の下書き・投稿済みと1行目が被らないようにする
+    created = []
+    for i in range(1, n + 1):
+        draft = None
+        for _ in range(max_retries):
+            cand = sample_draft() if use_sample else generate_one_draft()
+            ok, reason = vet_draft(cand, dedup_base)
+            if ok:
+                draft = cand
+                break
+            if use_sample:  # サンプルは再生成しても同じなので打ち切り
+                break
+        if not draft:
+            print(f"  [{i}/{n}] ❌ 安全チェックを通る下書きを生成できず、スキップ")
+            continue
+        draft.update({"status": "draft", "created_at": datetime.now().isoformat()})
+        created.append(draft)
+        dedup_base = [draft] + dedup_base  # 次の生成の重複判定に反映
+        print(f"  [{i}/{n}] ✓ {draft['hook_line'][:36]}…")
+
+    if created:
+        save_drafts(created + drafts)  # 新しい順に先頭へ
+        _write_drafts_markdown()
+    return created
+
+
+# ════════════════════════════════════════════════════════
 #  1本の自動投稿（生成→検査→投稿→記録）
 # ════════════════════════════════════════════════════════
 
@@ -447,6 +512,8 @@ def main(argv=None):
     ap.add_argument("--now", action="store_true", help="今すぐ投稿する")
     ap.add_argument("--loop", action="store_true", help="最適時間帯に自動投稿し続ける")
     ap.add_argument("--count", type=int, default=1, help="--now時に投稿する本数")
+    ap.add_argument("--drafts", type=int, default=0, metavar="N",
+                    help="投稿せず、下書きをN本 生成して保存する（毎朝のまとめ生成向け）")
     ap.add_argument("--dry-run", action="store_true", help="投稿せず生成結果のみ表示")
     ap.add_argument("--sample", action="store_true", help="APIなしでパイプライン動作確認")
     args = ap.parse_args(argv)
@@ -459,6 +526,17 @@ def main(argv=None):
     print(f"  投稿時間帯 : {', '.join(CONFIG['POST_SLOTS'])}")
     print(f"  1日の上限  : {CONFIG['DAILY_LIMIT']}本")
     print("=" * 56)
+
+    if args.drafts:
+        n = max(1, args.drafts)
+        print(f"\n📝 下書きを{n}本 生成します（投稿はしません）…")
+        created = generate_drafts(n, use_sample=args.sample)
+        day = date.today().isoformat()
+        print(f"\n✅ {len(created)}本の下書きを保存しました")
+        print(f"   一覧(JSON) : data/drafts.json")
+        print(f"   読む用(MD) : data/drafts/{day}.md")
+        print(f"   webapp.py の「下書き」から確認・投稿できます。")
+        return 0
 
     if args.loop:
         run_loop()

@@ -62,14 +62,13 @@ def generate_preview(use_sample: bool) -> dict:
 
 
 def post_draft(draft: dict) -> dict:
-    """プレビュー済みの下書きを実際にThreadsへ投稿し、履歴に保存する。"""
+    """プレビュー済みの下書きを実際にThreadsへ投稿し、履歴に保存する。
+    手動投稿（ユーザーがボタンで確認済み）なので1日上限のチェックはしない。"""
     history = autopost.load_history()
     # 投稿前に最終安全チェック（改ざん・直近重複を再確認）
     ok, reason = autopost.vet_draft(draft, history)
     if not ok:
         raise ValueError(f"安全チェック不合格のため投稿を中止: {reason}")
-    if autopost.CONFIG["DAILY_LIMIT"] and autopost.posted_today(history) >= autopost.CONFIG["DAILY_LIMIT"]:
-        raise ValueError(f"本日の投稿上限（{autopost.CONFIG['DAILY_LIMIT']}本）に到達しています。")
 
     result = autopost.post_to_threads(draft)
     draft.update({
@@ -81,6 +80,35 @@ def post_draft(draft: dict) -> dict:
     history.insert(0, draft)
     autopost.save_history(history)
     return draft
+
+
+# ---- 下書き（作り置き）関連 ----
+
+def list_drafts() -> list:
+    return [d for d in autopost.load_drafts() if d.get("status") == "draft"]
+
+
+def make_drafts(n: int) -> list:
+    """下書きを n 本生成して保存し、作成分を返す。"""
+    n = max(1, min(n, 10))
+    return autopost.generate_drafts(n)
+
+
+def post_saved_draft(draft_id: str) -> dict:
+    """保存済み下書きを投稿し、下書きストアから取り除く。"""
+    drafts = autopost.load_drafts()
+    target = next((d for d in drafts if d.get("id") == draft_id), None)
+    if not target:
+        raise ValueError("下書きが見つかりません（既に投稿/削除済みの可能性）。")
+    posted = post_draft(target)
+    autopost.save_drafts([d for d in drafts if d.get("id") != draft_id])
+    return posted
+
+
+def delete_saved_draft(draft_id: str) -> dict:
+    drafts = autopost.load_drafts()
+    autopost.save_drafts([d for d in drafts if d.get("id") != draft_id])
+    return {"ok": True, "removed": draft_id}
 
 
 def recent_history(limit: int = 30) -> list:
@@ -215,6 +243,17 @@ PAGE = r"""<!DOCTYPE html>
     </div>
   </div>
 
+  <!-- 下書き（作り置き） -->
+  <div class="card">
+    <h2>下書き（毎朝9時に自動生成）</h2>
+    <div class="btnrow" style="margin-bottom:6px">
+      <button class="btn ghost" id="btnMake">📝 今すぐ5本 下書きを作る</button>
+      <button class="btn ghost" id="btnReloadDrafts">↻ 再読み込み</button>
+    </div>
+    <div class="note">朝9時のバッチで作られた下書きがここに並びます。確認して1本ずつ投稿できます。</div>
+    <div id="drafts" style="margin-top:12px"><div class="empty">読み込み中…</div></div>
+  </div>
+
   <!-- 履歴 -->
   <div class="card">
     <h2>投稿履歴</h2>
@@ -331,12 +370,81 @@ async function loadHistory(){
     '<div class="empty">履歴の取得に失敗: '+esc(e.message)+'</div>'; }
 }
 
+async function loadDrafts(){
+  try{
+    const items = await api('/api/drafts');
+    const box = document.getElementById('drafts');
+    if(!items.length){ box.innerHTML = '<div class="empty">下書きはありません。「今すぐ5本」か、毎朝9時のバッチで作られます。</div>'; return; }
+    box.innerHTML = items.map(d=>{
+      const dt = (d.created_at||'').replace('T',' ').slice(0,16);
+      return `<div class="hist-item" data-id="${esc(d.id)}">
+        <div class="hist-hook">${esc(d.hook_line || (d.text||'').split('\n')[0])}</div>
+        <div class="hist-meta">
+          <span>🕒 ${esc(dt)}</span>
+          ${d.post_type?`<span>◆ ${esc(d.post_type)}</span>`:''}
+          <span>本文 ${(d.text||'').length}字 / リプ ${(d.comment_text||'').length}字</span>
+        </div>
+        <details style="margin-top:8px">
+          <summary style="cursor:pointer;color:var(--accent);font-size:13px">本文とリプ欄を見る</summary>
+          <div class="body-text" style="margin-top:8px">${esc(d.text)}</div>
+          <div class="label"><span>リプ欄</span></div>
+          <div class="body-text">${esc(d.comment_text||'(なし)')}</div>
+        </details>
+        <div class="btnrow" style="margin-top:10px">
+          <button class="btn ghost btn-del" data-id="${esc(d.id)}">🗑 削除</button>
+          <button class="btn primary btn-postdraft" data-id="${esc(d.id)}">🚀 これを投稿</button>
+        </div>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.btn-postdraft').forEach(b=> b.onclick = ()=>postSavedDraft(b.dataset.id, b));
+    box.querySelectorAll('.btn-del').forEach(b=> b.onclick = ()=>deleteDraft(b.dataset.id));
+  }catch(e){ document.getElementById('drafts').innerHTML =
+    '<div class="empty">下書きの取得に失敗: '+esc(e.message)+'</div>'; }
+}
+
+async function makeDrafts(){
+  const btn = document.getElementById('btnMake');
+  const orig = btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 生成中…（1分ほど）';
+  try{
+    const created = await api('/api/make_drafts', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({n:5})
+    });
+    toast(`✅ ${created.length}本の下書きを作りました`, 'ok');
+    loadDrafts();
+  }catch(e){ toast('生成失敗: '+e.message, 'err'); }
+  finally{ btn.disabled=false; btn.innerHTML=orig; }
+}
+
+async function postSavedDraft(id, btn){
+  if(!confirm('この下書きをThreadsに投稿します。よろしいですか？')) return;
+  const orig = btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> 投稿中…';
+  try{
+    await api('/api/post_draft', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})
+    });
+    toast('✅ 投稿完了！', 'ok');
+    loadDrafts(); loadStatus(); loadHistory();
+  }catch(e){ toast('投稿失敗: '+e.message, 'err'); btn.disabled=false; btn.innerHTML=orig; }
+}
+
+async function deleteDraft(id){
+  if(!confirm('この下書きを削除しますか？')) return;
+  try{
+    await api('/api/delete_draft', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({id})
+    });
+    toast('削除しました', 'ok'); loadDrafts();
+  }catch(e){ toast('削除失敗: '+e.message, 'err'); }
+}
+
 document.getElementById('btnGen').onclick = ()=>generate(false);
 document.getElementById('btnSample').onclick = ()=>generate(true);
 document.getElementById('btnRegen').onclick = ()=>generate(false);
 document.getElementById('btnPost').onclick = postNow;
+document.getElementById('btnMake').onclick = makeDrafts;
+document.getElementById('btnReloadDrafts').onclick = loadDrafts;
 
-loadStatus(); loadHistory();
+loadStatus(); loadDrafts(); loadHistory();
 </script>
 </body>
 </html>"""
@@ -384,6 +492,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(build_status())
             elif path == "/api/history":
                 self._send_json(recent_history())
+            elif path == "/api/drafts":
+                self._send_json(list_drafts())
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:
@@ -397,6 +507,12 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(generate_preview(bool(body.get("sample"))))
             elif path == "/api/post":
                 self._send_json(post_draft(body))
+            elif path == "/api/make_drafts":
+                self._send_json(make_drafts(int(body.get("n", 5))))
+            elif path == "/api/post_draft":
+                self._send_json(post_saved_draft(body.get("id", "")))
+            elif path == "/api/delete_draft":
+                self._send_json(delete_saved_draft(body.get("id", "")))
             else:
                 self._send_json({"error": "not found"}, 404)
         except Exception as e:
