@@ -34,7 +34,8 @@ knowledge/
 │   ├── 08_strategy.md         運用戦略
 │   ├── 09_monetization.md     収益化の全体設計（Tier・価格帯）
 │   ├── 13_launch_strategy.md  プロダクトローンチ（14日間＋note単体型）
-│   └── 14_business_model.md   事業の原則（集客×単価×成約率／リスト／ファネル）
+│   ├── 14_business_model.md   事業の原則（集客×単価×成約率／リスト／ファネル）
+│   └── 15_workflow.md         運用ワークフロー（需要の答え合わせ→テーマ→ナレッジ台本）
 │
 ├── 4_domain/             ── 投稿ネタの源泉（専門知識）
 │   ├── 04_domain.md           AIツール活用（ChatGPT/Claude/Gemini/Perplexity）
