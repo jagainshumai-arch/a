@@ -79,6 +79,38 @@ python -m threads_automation.pipeline \
   --cycles 0
 ```
 
+## Claude Code運用（claude_post.py）← シロウ式「運用をClaude Codeに任せる」
+
+`autopost.py` が Anthropic API を1回叩いて生成するのに対し、`claude_post.py` は
+**`claude` CLI をヘッドレス（`claude -p`）で実行**し、フルのClaude Codeエージェントに
+ナレッジ・テンプレ・themes を読み込ませて投稿を生成する。生成の「頭脳」がClaude Code、
+安全チェックと投稿の「手」を `autopost.py` の関数が担う。
+
+```
+claude CLI (-p ヘッドレス, ナレッジ参照) → 安全チェック(autopost) → Threads API(本文+リプ)
+```
+
+**前提:** `claude` CLIのインストール＆ログイン
+```bash
+npm install -g @anthropic-ai/claude-code
+claude            # 初回ログイン
+```
+
+```bash
+python claude_post.py --dry-run              # Claude Codeに生成させて表示（投稿しない）
+python claude_post.py --now                  # 生成→安全チェック→Threadsへ投稿
+python claude_post.py --draft                # 生成して下書き保存（webappの「下書き」に出る）
+python claude_post.py --now --allow-fallback # claude CLIが無ければAPI生成に切替
+```
+
+**毎日決めた時刻に自動投稿（Windows）:** `setup_claude_schedule.bat` をダブルクリック。
+投稿時刻（既定 14:00,20:00）を入れると、タスクスケジューラに時刻ごとの予約
+（`ThreadsClaudePost_1`, `_2`…）が登録される。中身は `claude_post.bat`（`claude_post.py --now`）。
+※PCが起動している必要あり。止めるとき: `schtasks /Delete /TN "ThreadsClaudePost_1" /F`
+
+> autopost.py（API1回・軽量・claude CLI不要）と claude_post.py（フルエージェント・
+> スキルとツールを使える・シロウ式）は用途で使い分ける。安全装置・履歴・.envは共通。
+
 ## 全自動投稿アプリ（autopost.py）
 
 人の承認を挟まず「生成 → 安全チェック → 本文＋リプ欄を自動投稿」まで一気に回す
