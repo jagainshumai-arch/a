@@ -89,9 +89,16 @@ def generate_with_claude_code(model: str | None = None,
     if model:
         args += ["--model", model]
 
+    # claude CLI には自分の claude.ai ログイン（Claudeサブスク）を使わせる。
+    # .env の ANTHROPIC_API_KEY が環境に残っていると「APIキー認証を優先」して
+    # 競合・エラー終了するため、子プロセスの環境からは外す（autopost側の
+    # API利用には影響しない。CONFIG に読み込み済みのため）。
+    child_env = {k: v for k, v in os.environ.items()
+                 if k not in ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN")}
+
     run_kwargs = dict(input=GEN_PROMPT, cwd=str(autopost.BASE_DIR),
                       capture_output=True, text=True, timeout=timeout,
-                      encoding="utf-8")
+                      encoding="utf-8", env=child_env)
     if os.name == "nt":
         # npm製の claude は claude.cmd（バッチ）。CreateProcessで直接起動できないため
         # shell経由で実行する。引数に特殊文字は無く、プロンプトはstdinなので安全。
