@@ -16,6 +16,7 @@ CLI:
     python -m threads_automation.buzz import   # competitor_posts.json を取り込む
     python -m threads_automation.buzz list     # 蓄積済みバズ投稿を一覧表示
     python -m threads_automation.buzz analyze  # 勝ちパターンを抽出して patterns.md を更新
+    python -m threads_automation.buzz themes   # 伸びるテーマ候補を抽出して themes.md を更新
 """
 
 import json
@@ -60,6 +61,8 @@ class BuzzLibrary:
         if knowledge_dir is None:
             knowledge_dir = Path(__file__).resolve().parent / "knowledge"
         self.patterns_file = Path(knowledge_dir) / "5_buzz" / "patterns.md"
+        # 抽出した「伸びるテーマ候補」の出力先。生成時のナレッジに自動で含まれる。
+        self.themes_file = Path(knowledge_dir) / "5_buzz" / "themes.md"
 
     # ── 収集 ──────────────────────────────────────────────
 
@@ -210,6 +213,89 @@ class BuzzLibrary:
         logger.info("Wrote buzz patterns → %s", self.patterns_file)
         return self.patterns_file
 
+    # ── テーマ抽出（需要の答え合わせ） ──────────────────────
+
+    def extract_themes(self, ai, niche: str = "AI活用×仕組み化×収益化",
+                       n_posts: int = 40, top_k: int = 10) -> Path:
+        """収集したバズ投稿から「伸びる可能性が高いテーマ候補」を抽出して themes.md に書き出す。
+
+        シロウ式の「需要の答え合わせ」を自動化する。バズ投稿は世の中の需要の答えなので、
+        繰り返し出るテーマ（名詞・主張）を集計し、表示数の裏付けが強い順に並べる。
+        """
+        # テーマ抽出は「リーチ（表示数）」が主指標なので views 降順で母集団を作る
+        posts = sorted(self.list_posts(), key=lambda p: p.views, reverse=True)[:n_posts]
+        if not posts:
+            raise ValueError("バズ投稿が0件です。先に /buzz add か import で収集してください。")
+
+        # データから相対的な「高表示ライン」を決める（Threadsは10万に届かないことも多いため）
+        views_sorted = sorted((p.views for p in posts), reverse=True)
+        cut = views_sorted[max(0, len(views_sorted) // 3 - 1)] if views_sorted else 0
+        high_line = max(cut, 1)
+
+        dataset = [
+            {
+                "source": p.source,
+                "account": p.account,
+                "niche": p.niche,
+                "views": p.views,
+                "likes": p.likes,
+                "engagement_rate": round(p.engagement_rate, 4),
+                "text": p.text[:200],
+            }
+            for p in posts
+        ]
+
+        prompt = f"""あなたは、SNSのトレンドを分析するリサーチャーです。
+バズ投稿は「世の中の需要の答え」です。0からネタを考えるのではなく、
+すでに当たっている投稿から「今どのテーマが伸びるか」を導き出してください。
+
+【発信ジャンル】{niche}
+【高表示ライン】このデータでは表示数 {high_line:,} 以上を「高表示」とみなす
+
+【入力（バズ投稿の一覧・表示数の多い順）】
+{json.dumps(dataset, ensure_ascii=False, indent=2)}
+
+【やってほしいこと】
+1. 各投稿から「その投稿が一番伝えたいテーマ」を短い名詞かフレーズで抜き出す
+2. 似たテーマどうしをグルーピングする
+3. テーマごとに集計する（該当投稿数／合計表示数／高表示の本数）
+4. 次の条件に当てはまるものを「伸びる可能性が高いテーマ」として上位に並べる
+   ・合計の表示数が多い
+   ・同じテーマで高表示の投稿が複数ある
+5. 発信ジャンルに転用できるテーマだけに絞る
+
+以下のMarkdownで、そのままナレッジに保存できる形で出力（コードブロックで囲まない）:
+
+## 今の伸びるテーマ Top{top_k}
+伸びそうな順に{top_k}個。各テーマを次の表の1行にする。
+| 順位 | テーマ | 該当数 | 合計表示 | 高表示本数 | このジャンルでの料理法（一言） |
+|---|---|---:|---:|---:|---|
+
+## 各テーマの投稿アイデア
+上位5テーマについて「### テーマ名」の見出しで、
+このジャンル・ペルソナ（AIで稼ぐ情報系大学生）で書くなら、という
+1行目フックの案を2つずつ書く。
+
+## 今は避けたい・弱いテーマ
+- 表示数の裏付けが弱い/このジャンルに転用しづらいテーマを2〜3個、理由付きで
+
+事実（表示数）に基づき、抽象論を避け、すぐ投稿テーマに使える具体性で書くこと。"""
+
+        body = ai.generate(prompt, max_tokens=3000)
+        header = (
+            "# 5_buzz テーマ候補（需要の答え合わせ）\n\n"
+            f"> `buzz.py themes` が自動生成。最終更新: "
+            f"{datetime.now().isoformat(timespec='seconds')} / 分析対象: {len(posts)}件\n"
+            "> バズ投稿（＝需要の答え）から抽出した「今伸びるテーマ」。\n"
+            "> writer/autopost はこのテーマ群を優先して投稿ネタに使う。\n"
+            "> 手で編集せず、再収集→再抽出で更新する。\n\n"
+            "---\n\n"
+        )
+        self.themes_file.parent.mkdir(parents=True, exist_ok=True)
+        self.themes_file.write_text(header + body.strip() + "\n", encoding="utf-8")
+        logger.info("Wrote buzz themes → %s", self.themes_file)
+        return self.themes_file
+
     # ── 内部ヘルパ ────────────────────────────────────────
 
     def _next_seq(self) -> int:
@@ -313,6 +399,16 @@ def _main(argv: list[str]) -> int:
         ai = AIClient(cfg.ai)
         out = lib.analyze(ai)
         print(f"勝ちパターンを書き出しました → {out}")
+    elif cmd == "themes":
+        from .ai_client import AIClient
+        from .config import load_config
+        cfg = load_config()
+        if not (cfg.ai.anthropic_api_key or cfg.ai.openai_api_key):
+            print("APIキーが未設定です（ANTHROPIC_API_KEY / OPENAI_API_KEY）。")
+            return 1
+        ai = AIClient(cfg.ai)
+        out = lib.extract_themes(ai)
+        print(f"伸びるテーマ候補を書き出しました → {out}")
     else:
         print(__doc__)
         return 1

@@ -190,10 +190,15 @@ POST_INTERVAL_SEC=300          # --count 連投時の投稿間隔（秒）
 python -m threads_automation.buzz import   # competitor_posts.json を取り込む
 python -m threads_automation.buzz list     # 蓄積済みバズ投稿を一覧
 python -m threads_automation.buzz analyze  # 勝ちパターンを抽出 → knowledge/5_buzz/patterns.md
+python -m threads_automation.buzz themes   # 伸びるテーマ候補を抽出 → knowledge/5_buzz/themes.md
 ```
 
-生データは `data/buzz/`（1投稿1ファイル＋`_index.md`自動生成）、
-抽出した型は `knowledge/5_buzz/patterns.md`（writerが最優先で参照）。
+生データは `data/buzz/`（1投稿1ファイル＋`_index.md`自動生成）。抽出結果は2種類:
+- `knowledge/5_buzz/patterns.md` … **どう書くか**（勝ちパターン・型）
+- `knowledge/5_buzz/themes.md` … **何を書くか**（今伸びるテーマ＝需要の答え合わせ）
+
+どちらも生成時のナレッジに自動で含まれ、`autopost.py` / `webapp.py` の投稿がこの
+「実データ由来のテーマ・型」を優先して作られる（シロウ式：リサーチ→テーマ抽出→ナレッジ台本）。
 
 ## 競合データの手動追加
 

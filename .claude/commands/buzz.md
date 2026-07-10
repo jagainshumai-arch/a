@@ -9,7 +9,8 @@
 収集（手動 or 取り込み）
   → data/buzz/ に1投稿1ファイルで蓄積（_index.md / _counter.txt 自動生成）
   → AI抽出
-  → knowledge/5_buzz/patterns.md（writerが最優先で読む勝ちパターン）
+  ├→ knowledge/5_buzz/patterns.md（writerが最優先で読む勝ちパターン＝どう書くか）
+  └→ knowledge/5_buzz/themes.md（今伸びるテーマ候補＝何を書くか／需要の答え合わせ）
 ```
 
 ## モード
@@ -48,6 +49,16 @@ APIキー（ANTHROPIC_API_KEY / OPENAI_API_KEY）が必要。
 analyze と同じ観点（共通要素／型／数字の使われ方／避けること）で
 `knowledge/5_buzz/patterns.md` を手で書き起こしてもよい。
 
+### themes（伸びるテーマ候補を抽出＝需要の答え合わせ）
+蓄積したバズ投稿から「今どのテーマが伸びるか」を集計し、
+`knowledge/5_buzz/themes.md` に Top10 を書き出す:
+```bash
+python -m threads_automation.buzz themes
+```
+バズ投稿は「世の中の需要の答え」。繰り返し出る名詞・主張を、表示数の裏付けが
+強い順に並べる。writer/autopost はこのテーマを優先して投稿ネタに使う。
+`patterns.md`（どう書くか）と `themes.md`（何を書くか）はセットで機能する。
+
 ### list（一覧確認）
 ```bash
 python -m threads_automation.buzz list
@@ -66,4 +77,4 @@ python -m threads_automation.buzz list
 - 丸パクリ用ではない。「構造」を抽出して自分の投稿に転用するのが目的
 
 ## 引数
-$ARGUMENTS — `add` / `import` / `analyze` / `list`。未指定時は現状（収集数・最終分析日）を報告。
+$ARGUMENTS — `add` / `import` / `analyze` / `themes` / `list`。未指定時は現状（収集数・最終分析日）を報告。
