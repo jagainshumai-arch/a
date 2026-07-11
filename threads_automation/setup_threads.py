@@ -12,7 +12,9 @@ from urllib.parse import urlencode, urlparse, parse_qs
 
 
 REDIRECT_PORT = 8888
-REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}/callback"
+# Threads/Meta は http:// のリダイレクトを拒否する（error_code 1349187
+# 「セキュアではないログインがブロックされました」）。必ず https:// を使う。
+REDIRECT_URI = f"https://localhost:{REDIRECT_PORT}/callback"
 
 # ── Step 1: アプリ情報の入力 ──
 
@@ -67,28 +69,32 @@ def get_authorization_code(app_id):
     print()
     print(f"  {auth_url}")
     print()
-    print(f"認証後、http://localhost:{REDIRECT_PORT}/callback にリダイレクトされます。")
+    print(f"認証後、{REDIRECT_URI} にリダイレクトされます。")
     print()
+    print("─" * 60)
+    print("【重要】ブラウザは認証後、白い『このサイトにアクセスできません』")
+    print("        などのエラー画面になりますが、それで正常です。")
+    print("        アドレスバーに出る URL 全体（?code=... を含む）を")
+    print("        コピーして、下に貼り付けてください。")
+    print("─" * 60)
+    print()
+    redirect_url = input("リダイレクトされたURL全体を貼り付け: ").strip()
 
-    # ローカルサーバーで認証コードを受け取る、またはURL手動入力
-    print("方法を選択してください:")
-    print("  1: リダイレクトURLを手動で貼り付ける")
-    print("  2: ローカルサーバーで自動受信する（ポート8888）")
-    choice = input("選択 (1/2): ").strip()
-
-    if choice == "2":
-        return _receive_code_via_server()
-    else:
-        print()
-        redirect_url = input("リダイレクトされたURL全体を貼り付けてください: ").strip()
+    # 貼り付けが「URL全体」でも「codeだけ」でも拾えるようにする
+    code = None
+    if "code=" in redirect_url:
         parsed = urlparse(redirect_url)
-        params = parse_qs(parsed.query)
-        code = params.get("code", [None])[0]
-        if not code:
-            print("❌ 認証コードが見つかりません")
-            sys.exit(1)
-        # code末尾の#_が付く場合がある
-        return code.rstrip("#_")
+        code = parse_qs(parsed.query).get("code", [None])[0]
+        if not code:  # クエリ抽出に失敗したら文字列から拾う
+            code = redirect_url.split("code=", 1)[1].split("&", 1)[0]
+    elif redirect_url:
+        code = redirect_url  # code文字列そのものを貼られた場合
+
+    if not code:
+        print("❌ 認証コードが見つかりません（URL全体を貼り付けてください）")
+        sys.exit(1)
+    # code末尾に付くことがある #_ を除去
+    return code.rstrip("#_")
 
 
 class CallbackHandler(BaseHTTPRequestHandler):
