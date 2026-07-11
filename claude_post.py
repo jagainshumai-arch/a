@@ -73,8 +73,11 @@ READONLY_TOOLS = ["Read", "Grep", "Glob"]
 
 
 def generate_with_claude_code(model: str | None = None,
-                              timeout: int = 240) -> dict:
+                              timeout: int | None = None) -> dict:
     """`claude -p` をヘッドレス実行し、投稿JSONを受け取る。"""
+    if timeout is None:
+        # 環境やマシンによって生成に数分かかることがある。既定は長めの10分。
+        timeout = autopost._int_env("CLAUDE_POST_TIMEOUT", 600)
     if not claude_cli_available():
         raise FileNotFoundError(
             "`claude` CLI が見つかりません。\n"
@@ -145,7 +148,7 @@ def _short_id() -> str:
 
 def run_once(dry_run: bool = False, save_draft: bool = False,
              model: str | None = None, allow_fallback: bool = False,
-             max_retries: int = 3) -> dict | None:
+             timeout: int | None = None, max_retries: int = 3) -> dict | None:
     history = autopost.load_history()
 
     # 1日の上限チェック（実投稿時のみ）
@@ -157,7 +160,7 @@ def run_once(dry_run: bool = False, save_draft: bool = False,
     draft = None
     for attempt in range(1, max_retries + 1):
         try:
-            candidate = generate_with_claude_code(model=model)
+            candidate = generate_with_claude_code(model=model, timeout=timeout)
         except FileNotFoundError:
             if allow_fallback:
                 print("  ↪ claude CLI 未検出 → autopost のAPI生成にフォールバック")
@@ -219,6 +222,8 @@ def main(argv=None):
     ap.add_argument("--model", default=None, help="claude CLIに渡すモデル（任意）")
     ap.add_argument("--allow-fallback", action="store_true",
                     help="claude CLIが無ければ autopost のAPI生成に切り替える")
+    ap.add_argument("--timeout", type=int, default=None,
+                    help="1本の生成にかける最大秒数（既定600。.envのCLAUDE_POST_TIMEOUTでも可）")
     args = ap.parse_args(argv)
 
     print("=" * 56)
@@ -238,7 +243,8 @@ def main(argv=None):
         print(f"\n[{i+1}/{n}]")
         try:
             run_once(dry_run=args.dry_run, save_draft=args.draft,
-                     model=args.model, allow_fallback=args.allow_fallback)
+                     model=args.model, allow_fallback=args.allow_fallback,
+                     timeout=args.timeout)
         except Exception as e:
             print(f"  ❌ エラー: {e}")
             return 1
